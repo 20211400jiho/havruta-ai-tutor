@@ -1,0 +1,365 @@
+* {
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #f5f7fb;
+  font-family: sans-serif;
+}
+
+.dashboard {
+  display: flex;
+  min-height: 100vh;
+}
+
+.hello {
+  color: black;
+  font-size: 40px;
+}
+
+.cheer {
+  color: black;
+  font-size: 27px;
+}
+
+/* 사이드바 */
+
+.sidebar {
+  width: 240px;
+  background: white;
+  border-right: 1px solid #ddd;
+  padding: 20px;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 40px;
+}
+
+.menu {
+  list-style: none;
+}
+
+.menu li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 14px;
+  margin-bottom: 10px;
+  border-radius: 15px;
+  cursor: pointer;
+}
+
+.menu li img{
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.menu li:hover {
+  background: #4f7df3;
+  color: white;
+}
+
+.menu li:hover img {
+  filter: brightness(0) invert(1);
+}
+
+.menu .active {
+  background: #4f7df3;
+  color: white;
+}
+
+/*선택 시 배경, 아이콘 색 변경*/
+.menu li.active {
+  background: #4f7df3;
+  color: white;
+}
+
+.menu li.active img {
+  filter: brightness(0) invert(1);
+}
+
+/* 메인 */
+
+.content {
+  flex: 1;
+  padding: 40px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ai-card {
+  position: relative;
+
+  width: 452px;
+  height: 146px;
+
+  background: white;
+  border-radius: 22px;
+
+  padding: 20px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  text-align: left;
+
+  box-shadow: 0 4px 12px rgba(146, 197, 255);
+
+  overflow: visible;
+}
+
+/*AI 튜터*/
+.ai-card h3 {
+  text-align: left;
+  margin: 0;
+  font-size: 27px;
+  font-weight: bold;
+  color: black;
+  position: re;
+  overflow: visible;
+}
+
+/*무엇을 도와드릴까요?*/
+.ai-card p {
+  text-align: left;
+  margin-top: 5px;
+  font-size: 20px;
+  color: black;
+}
+
+.robot {
+  font-size: 50px;
+  position: absolute;
+  left:200px;
+  bottom: 0;
+}
+
+.robot img {
+  width: 181px;
+  height: 185px;
+}
+
+/* 현황 카드*/
+
+.status-section {
+  width: 100%;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 20px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  width: 100%;
+}
+
+.status-card-custom {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  border: 1px solid #f8fafc;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.02), 0 8px 16px -6px rgba(0, 0, 0, 0.02);
+  min-height: 120px;
+  box-sizing: border-box;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.card-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.card-sub {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 8px;
+}
+
+.card-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-visual.align-bottom {
+  align-items: flex-end; 
+}
+
+/* SVG 원형 차트 그래픽 정의 */
+.circular-chart {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  transform: rotate(-90deg);
+}
+
+.circle-bg {
+  fill: none;
+  stroke: #eff6ff;
+  stroke-width: 3.5;
+}
+
+.circle {
+  fill: none;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+.blue-arc .circle {
+  stroke: #3b82f6;
+}
+.blue-arc .circle-bg {
+  stroke: #f0f6ff;
+}
+
+.green-arc .circle {
+  stroke: #10b981;
+}
+.green-arc .circle-bg {
+  stroke: #f0fdf4;
+}
+
+.icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orange-box {
+  background: #ffedd5;
+  color: #f97316;
+}
+
+.purple-box {
+  background: #f3e8ff;
+  color: #a855f7;
+}
+
+
+.stats {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.card {
+  flex: 1;
+  background: white;
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+
+.card p {
+  color: gray;
+  margin-bottom: 10px;
+}
+
+.quick-menu {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.btn {
+  flex: 1;
+  border: none;
+  border-radius: 15px;
+  color: white;
+  padding: 20px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.btn span {
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.blue {
+  background: #4f7df3;
+}
+
+.green {
+  background: #5dc786;
+}
+
+.purple {
+  background: #8d6cf8;
+}
+
+.orange {
+  background: #f5a74d;
+}
+
+.bottom-section {
+  margin-top: 40px;
+  display: flex;
+  gap: 30px;
+}
+
+.history, .weekly {
+  flex: 1;
+  background: white;
+  padding: 25px;
+  border-radius: 16px;
+}
+
+.history ul {
+  margin-top: 20px;
+}
+
+.history li {
+  margin-bottom: 15px;
+}
+
+.graph-box {
+  margin-top: 20px;
+  height: 200px;
+  border-radius: 12px;
+  background: #eef3ff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

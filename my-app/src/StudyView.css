@@ -1,0 +1,79 @@
+.study-chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 20px;
+    background-color: transparent;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding-bottom: 20px;
+}
+
+/* 메시지 정렬 */
+.message-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.message-row.user {
+    justify-content: flex-end;
+}
+
+/* AI 아바타 */
+.ai-avatar {
+    width: 50px;
+    height: 71.5px;
+    border-radius: 50%;
+}
+
+/* 말풍선 */
+.bubble {
+    padding: 12px 18px;
+    border-radius: 15px;
+    max-width: 60%;
+    line-height: 1.5;
+}
+
+.ai .bubble {
+    background-color: #e0f0ff; /* 연한 파란색 */
+    color: #333;
+}
+
+.user .bubble {
+    background-color: transparent; /* 사용자는 말풍선 배경 없음 */
+    color: #333;
+    text-align: right;
+}
+
+/* 하단 입력바 */
+.chat-input-bar {
+    display: flex;
+    background-color: #b3caff; /* 연한 보라/파란색 */
+    border-radius: 30px;
+    padding: 10px 20px;
+    align-items: center;
+}
+
+.chat-input-bar input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 16px;
+    padding: 5px;
+}
+
+.send-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: white;
+    font-size: 20px;
+}

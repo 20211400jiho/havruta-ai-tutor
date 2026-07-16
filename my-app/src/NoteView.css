@@ -1,0 +1,218 @@
+.note-page { 
+    padding: 40px; 
+}
+.note-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 20px; 
+}
+
+.btn-add-note { background: #4f7df3; 
+    color: white; 
+    border: none; 
+    padding: 10px 20px; 
+    border-radius: 8px; 
+    font-weight: bold; 
+}
+
+/* 필터 스타일 */
+.filter-tabs { 
+    display: flex; 
+    gap: 10px; 
+    margin-bottom: 30px; 
+}
+
+.filter-tabs button { 
+    padding: 8px 20px; 
+    border: 1px solid #e2e8f0; 
+    border-radius: 20px; 
+    background: white; 
+    cursor: pointer; 
+}
+
+.filter-tabs button.active { 
+    background: #e2e8f0; 
+    font-weight: bold; 
+}
+
+/* 카드 스타일 */
+.note-grid { 
+    display: grid; 
+    grid-template-columns: 
+    repeat(2, 1fr); gap: 20px; 
+}
+
+.note-card { background: white; 
+    padding: 25px; border-radius: 16px; 
+    border: 1px solid #e2e8f0; 
+    position: relative; 
+}
+
+.delete-btn { position: absolute; 
+    top: 15px; 
+    right: 15px; 
+    border: none; 
+    background: #fee2e2; 
+    color: #ef4444; 
+    width: 25px; 
+    height: 25px; 
+    border-radius: 50%; 
+    cursor: pointer; 
+    font-weight: bold; 
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-edit {
+    background: #f1f5f9;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #64748b;
+}
+
+.btn-edit.active {
+    background: #334155;
+    color: white;
+}
+
+.btn-add-note { 
+    background: #4f7df3; 
+    color: white; 
+    border: none; 
+    padding: 10px 20px; 
+    border-radius: 8px; 
+    font-weight: bold; 
+    cursor: pointer;
+}
+
+.card-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+}
+
+.badge { 
+    background: #f1f5f9; 
+    padding: 4px 10px; 
+    border-radius: 6px; 
+    font-size: 12px; 
+    color: #64748b; 
+}
+
+.date { 
+    color: #94a3b8; 
+    font-size: 13px; 
+    margin: 5px 0 15px 0; 
+}
+
+.note-card ul { 
+    list-style: none; 
+    padding: 0; 
+    color: #334155; 
+}
+
+.note-card li { 
+    margin-bottom: 8px; 
+}
+
+/* 새 노트 만들기 카드 */
+.create-new { 
+    border: 2px dashed #cbd5e1; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    color: #4f7df3; 
+    cursor: pointer; 
+}
+
+.plus-icon { 
+    font-size: 30px; 
+}
+/* 전체 레이아웃 */
+.notion-page-container {
+    max-width: 800px; /* 노션처럼 콘텐츠 폭 제한 */
+    margin: 0 auto;   /* 중앙 정렬 */
+    padding: 40px 20px;
+}
+
+.back-btn {
+    background: #f1f5f9;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 30px;
+    color: #64748b;
+}
+
+/* 텍스트 스타일링 */
+.notion-content h1 {
+    font-size: 2.5rem;
+    margin: 15px 0;
+    color: #1e293b;
+}
+
+.meta-info {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 20px 0;
+}
+
+.page-body {
+    line-height: 1.8;
+    color: #334155;
+    font-size: 1.1rem;
+}
+
+/* 기존 카드 디자인 유지 */
+.note-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.detail-body {
+    line-height: 1.8;
+    color: #334155;
+    margin-top: 20px;
+  white-space: pre-wrap; /* 줄바꿈 유지 */
+}
+
+/* 노트 카드 커서 변경 */
+.note-card {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.note-card:hover {
+    transform: translateY(-5px);
+}
