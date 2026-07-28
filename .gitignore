@@ -1,4 +1,14 @@
 venv/
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .env
+
+# Rebuild with src/index_math_chroma.py
+chroma_db/
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

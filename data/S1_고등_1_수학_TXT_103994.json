@@ -1,0 +1,41 @@
+{
+    "raw_data_info" : {
+        "raw_data_name" : "9b721bc1-a387-4af9-b48d-f034ab52d436",
+        "date" : "2024-08-27",
+        "publisher" : "2차 저작",
+        "publication_year" : "2019-03-01",
+        "school" : "고등학교",
+        "grade" : "1학년",
+        "semester" : "공통",
+        "subject" : "수학",
+        "revision_year" : "2015"
+    },
+    "source_data_info" : {
+        "source_data_name" : "S1_고등_1_수학_TXT_103994",
+        "2009_achievement_standard" : [
+            " "
+        ],
+        "2015_achievement_standard" : [
+            "[10수학02-03] 직선의 방정식을 구할 수 있다."
+        ],
+        "2022_achievement_standard" : [
+            "[10공수2-01-02] 두 직선의 평행 조건과 수직 조건을 탐구하고 이해한다."
+        ]
+    },
+    "learning_data_info" : {
+        "learning_data_name" : "S1_고등_1_수학_TXT_103994",
+        "class_num" : 6,
+        "class_name" : "텍스트",
+        "bounding_box" : [
+            [
+                0.83,
+                3.47,
+                487.78,
+                37.64
+            ]
+        ],
+        "text_description" : "두 점의 $x$ 좌표가 같으므로 직선이 $y$ 축과 평행하다.",
+        "text_qa" : "두 점의 x좌표가 같으므로 직선은 어떤가요?",
+        "text_an" : "직선은 y축과 평행하다."
+    }
+}

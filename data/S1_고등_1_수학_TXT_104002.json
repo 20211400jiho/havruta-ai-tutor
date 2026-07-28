@@ -1,0 +1,41 @@
+{
+    "raw_data_info" : {
+        "raw_data_name" : "f120af75-2a69-4f98-be0b-4b3b4ab220e4",
+        "date" : "2024-08-27",
+        "publisher" : "2차 저작",
+        "publication_year" : "2019-03-01",
+        "school" : "고등학교",
+        "grade" : "1학년",
+        "semester" : "공통",
+        "subject" : "수학",
+        "revision_year" : "2015"
+    },
+    "source_data_info" : {
+        "source_data_name" : "S1_고등_1_수학_TXT_104002",
+        "2009_achievement_standard" : [
+            " "
+        ],
+        "2015_achievement_standard" : [
+            "[10수학02-04] 두 직선의 평행 조건과 수직 조건을 이해한다."
+        ],
+        "2022_achievement_standard" : [
+            "[10공수2-01-02] 두 직선의 평행 조건과 수직 조건을 탐구하고 이해한다."
+        ]
+    },
+    "learning_data_info" : {
+        "learning_data_name" : "S1_고등_1_수학_TXT_104002",
+        "class_num" : 6,
+        "class_name" : "텍스트",
+        "bounding_box" : [
+            [
+                24.06,
+                8.76,
+                505.31,
+                116.97
+            ]
+        ],
+        "text_description" : "기울기가 2 이고 점 $(1,-2)$를 지나는 직선의 방정식은 $y-(-2)=2(x-1), \\boldsymbol{y}=\\mathbf{2} \\boldsymbol{x}-\\mathbf{4}$",
+        "text_qa" : "기울기가 2 이고 점  (1,-2)를 지나는 직선의 방정식은?",
+        "text_an" : "y-(-2)=2(x-1), y=2x-4 이다."
+    }
+}

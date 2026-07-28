@@ -1,0 +1,41 @@
+{
+    "raw_data_info" : {
+        "raw_data_name" : "2a3b1c96-3927-46b0-8f73-0904dc7aaa65",
+        "date" : "2024-08-27",
+        "publisher" : "2차 저작",
+        "publication_year" : "2019-03-01",
+        "school" : "고등학교",
+        "grade" : "1학년",
+        "semester" : "공통",
+        "subject" : "수학",
+        "revision_year" : "2015"
+    },
+    "source_data_info" : {
+        "source_data_name" : "S1_고등_1_수학_TXT_103995",
+        "2009_achievement_standard" : [
+            " "
+        ],
+        "2015_achievement_standard" : [
+            "[10수학02-03] 직선의 방정식을 구할 수 있다."
+        ],
+        "2022_achievement_standard" : [
+            "[10공수2-01-02] 두 직선의 평행 조건과 수직 조건을 탐구하고 이해한다."
+        ]
+    },
+    "learning_data_info" : {
+        "learning_data_name" : "S1_고등_1_수학_TXT_103995",
+        "class_num" : 6,
+        "class_name" : "텍스트",
+        "bounding_box" : [
+            [
+                2.59,
+                3.28,
+                377.05,
+                71.63
+            ]
+        ],
+        "text_description" : "점 $(3,0)$ 을 지나고 기울기가 2 이므로 $y-0=2(x-3), \\boldsymbol{y}=\\mathbf{2 x}-\\mathbf{6}$",
+        "text_qa" : "점(3.0)을 지나고 기울기가 2일 때 방정식은?",
+        "text_an" : "y-0=2(x-3), y=2x-6입니다."
+    }
+}
