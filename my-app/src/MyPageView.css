@@ -1,0 +1,99 @@
+.my-page-container { 
+    padding: 20px; 
+    max-width: 600px; 
+    margin: 0 auto; 
+}
+
+/* 프로필 카드 */
+.profile-card { 
+    background: #fff; 
+    padding: 25px; 
+    border-radius: 20px; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+    display: flex; 
+    align-items: center; 
+    gap: 20px; 
+    margin-bottom: 20px; 
+}
+
+.avatar { 
+    width: 60px; 
+    height: 60px; 
+    background: #e2e8f0; 
+    border-radius: 50%; 
+    display: flex; 
+    justify-content: 
+    center; align-items: 
+    center; font-weight: bold; 
+}
+
+/* 진행바 */
+.progress-bg { 
+    background: #e2e8f0; 
+    height: 8px; 
+    border-radius: 4px; 
+    width: 150px; 
+    overflow: hidden; 
+}
+.progress-fill { 
+    background: #4f7df3; 
+    height: 100%;
+}
+
+/* 그리드 섹션 */
+.grid-section { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 15px; 
+    margin-bottom: 20px; 
+}
+
+.dday-card, .stats-card { 
+    background: white; 
+    padding: 20px; 
+    border-radius: 16px; 
+    border: 1px solid #f1f5f9; 
+}
+
+.dday-text { 
+    font-size: 1.2rem; 
+    font-weight: bold; 
+    color: #4f7df3; 
+    margin-top: 10px; 
+}
+
+/* 통계 및 배지 */
+.stat-row { 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+    margin: 10px 0; 
+    font-size: 0.9rem; 
+}
+
+.bar { 
+    flex: 1; 
+    background: #f1f5f9; 
+    height: 6px; 
+    border-radius: 3px; 
+    overflow: hidden; 
+}
+
+.fill { 
+    background: #10b981; 
+    height: 100%; 
+}
+
+.badge-list { 
+    display: flex; 
+    gap: 10px; 
+    margin-top: 10px; 
+}
+
+.badge-item { 
+    background: #fef3c7; 
+    padding: 8px 15px; 
+    border-radius: 20px; 
+    font-size: 0.8rem; 
+    font-weight: 500; 
+}

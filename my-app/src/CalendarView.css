@@ -1,0 +1,225 @@
+/* CalendarView.css */
+
+.calendar-page-container {
+  display: flex;
+  gap: 30px;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  background-color: #ffffff;
+}
+
+.calendar-main-box {
+  flex: 1.3;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.calendar-header-zone {
+  display: flex;
+  align-items: center;
+  margin-bottom: 35px;
+}
+
+.calendar-main-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-right: 40px;
+}
+
+.month-selector {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.arrow-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.current-month-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.btn-today {
+  margin-left: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 14px;
+  color: #334155;
+  cursor: pointer;
+}
+
+/* 요일 헤더 격자 */
+.weekdays-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.weekday-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+/* 날짜 그리드 보드 */
+.days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 65px;
+  row-gap: 8px;
+  text-align: center;
+}
+
+.day-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: #334155;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  margin: auto;
+  transition: all 0.2s ease;
+}
+
+/* 다른 달 날짜 흐리게 */
+.day-cell.other-month {
+  color: #cbd5e1;
+  cursor: default;
+}
+
+/* 선택된 라운드 하이라이트 (시안 스펙 매칭 블루) */
+.day-cell.selected-day {
+  background: #3b82f6;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+/* 서브 인디케이터 장식 요소들 */
+.mini-indicators-dots {
+  font-size: 10px;
+  color: #10b981;
+  line-height: 1;
+  margin-top: -2px;
+}
+
+.mini-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #f59e0b;
+  position: absolute;
+  bottom: 4px;
+}
+
+/* --- 우측 상세 리포트 사이드바 영역 --- */
+.calendar-sidebar-report {
+  flex: 0.8;
+  background: #fafafa;
+  border-left: 1px solid #f1f5f9;
+  padding: 30px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.report-date-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 5px;
+}
+
+.report-section-sub {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 12px;
+}
+
+.report-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #334155;
+}
+
+.bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.purple-bullet { background: #a855f7; }
+.green-bullet { background: #10b981; }
+
+.item-title {
+  font-weight: 500;
+}
+
+.item-value {
+  margin-left: auto;
+  color: #64748b;
+}
+
+.text-green {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.no-data-text {
+  font-size: 13px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.total-time-footer-card {
+  margin-top: auto; 
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.total-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.total-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
