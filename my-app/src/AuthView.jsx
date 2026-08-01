@@ -13,9 +13,15 @@ export default function AuthView({ onAuthenticated }) {
     setError("");
     setLoading(true);
     try {
+      const normalized = {
+        ...form,
+        email: form.email.trim().toLowerCase(),
+        name: form.name.trim(),
+        grade: form.grade.trim() || null,
+      };
       const payload = mode === "login"
-        ? { email: form.email, password: form.password }
-        : { ...form, role: "student" };
+        ? { email: normalized.email, password: normalized.password }
+        : { ...normalized, role: "student" };
       const result = await api(`/auth/${mode === "login" ? "login" : "signup"}`, {
         method: "POST",
         body: JSON.stringify(payload),
@@ -37,12 +43,12 @@ export default function AuthView({ onAuthenticated }) {
         <p>AI와 질문하고 설명하며 수학 개념을 깊게 익혀보세요.</p>
         {mode === "signup" && (
           <>
-            <input required placeholder="이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input required autoComplete="name" placeholder="이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <input placeholder="학년" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} />
           </>
         )}
-        <input required type="email" placeholder="이메일" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input required minLength={8} type="password" placeholder="비밀번호 (8자 이상)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <input required type="email" autoComplete="email" placeholder="이메일 (예: demo@havruta.com)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <input required minLength={8} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="비밀번호 (8자 이상)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         {error && <div className="auth-error">{error}</div>}
         <button disabled={loading}>{loading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입"}</button>
         <button type="button" className="auth-switch" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}>

@@ -7,4 +7,4 @@
 .auth-card button { border: 0; border-radius: 12px; padding: 14px; background: #4f7df3; color: white; font-size: 15px; font-weight: 700; cursor: pointer; }
 .auth-card button:disabled { opacity: .6; }
 .auth-card .auth-switch { background: transparent; color: #4f7df3; font-weight: 600; }
-.auth-error { padding: 11px; border-radius: 10px; background: #fff1f2; color: #be123c; font-size: 14px; }
+.auth-error { padding: 11px; border-radius: 10px; background: #fff1f2; color: #be123c; font-size: 14px; white-space: pre-line; }
