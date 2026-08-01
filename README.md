@@ -1,5 +1,7 @@
 # Havruta AI Tutor
 
+> 전체 기획·구현·운영 설명서는 [`docs/PROJECT_MANUAL.md`](docs/PROJECT_MANUAL.md)를 참고하세요.
+
 고등학생이 AI와 질문·설명·피드백을 반복하며 학습하는 하브루타 튜터 MVP입니다. GitHub의 `main`, `AITraining`, `front` 브랜치를 하나의 `integration` 브랜치로 통합했습니다.
 
 ## 구현된 기능
