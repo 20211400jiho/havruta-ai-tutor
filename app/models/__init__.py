@@ -1,5 +1,5 @@
 from app.models.ai_feedback import AIFeedback
-from app.models.chat import ChatSession, Message
+from app.models.chat import ChatSession, Message, RoomChatMessage
 from app.models.document import Document, DocumentChunk, RagReference
 from app.models.learning import LearningRecord, LearningRoom, RoomMember
 from app.models.study_content import Quiz, QuizAttempt, QuizQuestion, StudyNote
@@ -13,6 +13,7 @@ __all__ = [
     "LearningRecord",
     "LearningRoom",
     "Message",
+    "RoomChatMessage",
     "RagReference",
     "RoomMember",
     "Quiz",

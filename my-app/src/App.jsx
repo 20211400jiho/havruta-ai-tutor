@@ -46,7 +46,7 @@ function App() {
         {activeMenu === 2 && <QuizView />}
         {activeMenu === 3 && <NoteView />}
         {activeMenu === 4 && <CalendarView />}
-        {activeMenu === 5 && <StudyRoomView />}
+        {activeMenu === 5 && <StudyRoomView user={user} />}
         {activeMenu === 6 && <MyPageView user={user} />}
         {activeMenu === 7 && (
           <SettingsView

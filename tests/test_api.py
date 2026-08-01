@@ -50,6 +50,40 @@ def test_complete_learning_flow(client, auth_headers):
     assert dashboard_response.json()["summary"]["completed_sessions"] == 1
 
 
+def test_authenticated_room_chat_and_history(client, auth_headers):
+    room_response = client.post(
+        "/rooms",
+        headers=auth_headers,
+        json={
+            "title": "실시간 토론방",
+            "subject": "수학",
+            "grade": "고등학교 1학년",
+            "max_members": 4,
+        },
+    )
+    room_id = room_response.json()["room"]["id"]
+    token = auth_headers["Authorization"].removeprefix("Bearer ")
+
+    with client.websocket_connect(f"/chat/ws/{room_id}") as websocket:
+        websocket.send_json({"type": "authenticate", "token": token})
+        authenticated = websocket.receive_json()
+        assert authenticated["type"] == "authenticated"
+        presence = websocket.receive_json()
+        assert presence["type"] == "presence"
+        assert presence["action"] == "joined"
+
+        websocket.send_json({"content": "두 점의 x좌표가 같으면 어떤 직선인가요?"})
+        event = websocket.receive_json()
+        assert event["type"] == "message"
+        assert event["message"]["content"].startswith("두 점의 x좌표")
+        assert event["message"]["user_name"] == "테스트 학생"
+
+    history = client.get(f"/chat/rooms/{room_id}/messages", headers=auth_headers)
+    assert history.status_code == 200
+    assert history.json()["count"] == 1
+    assert history.json()["messages"][0]["content"].startswith("두 점의 x좌표")
+
+
 def test_rag_search(client, auth_headers):
     response = client.post(
         "/rag/search",

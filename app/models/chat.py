@@ -52,3 +52,16 @@ class Message(Base):
     session = relationship("ChatSession", back_populates="messages")
     feedbacks = relationship("AIFeedback", back_populates="message")
     rag_references = relationship("RagReference", back_populates="message", cascade="all, delete-orphan")
+
+
+class RoomChatMessage(Base):
+    __tablename__ = "room_chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("learning_rooms.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    user = relationship("User")
+    room = relationship("LearningRoom")

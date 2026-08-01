@@ -1,8 +1,10 @@
 """Run a real HTTP smoke test against the local API server."""
 
+import json
 from time import time
 
 import httpx
+from websockets.sync.client import connect
 
 
 BASE_URL = "http://127.0.0.1:8000"
@@ -25,10 +27,24 @@ def main() -> None:
             json={"title": "통합 테스트방", "subject": "수학", "grade": "고1", "max_members": 2},
         )
         room.raise_for_status()
+        room_id = room.json()["room"]["id"]
+        token = signup.json()["access_token"]
+        with connect(f"ws://127.0.0.1:8000/chat/ws/{room_id}") as websocket:
+            websocket.send(json.dumps({"type": "authenticate", "token": token}))
+            authenticated = json.loads(websocket.recv())
+            assert authenticated["type"] == "authenticated"
+            presence = json.loads(websocket.recv())
+            assert presence["type"] == "presence"
+            websocket.send(json.dumps({"content": "실제 서버 WebSocket 확인"}))
+            chat_event = json.loads(websocket.recv())
+            assert chat_event["type"] == "message"
+        history = client.get(f"/chat/rooms/{room_id}/messages", headers=headers)
+        history.raise_for_status()
+        assert history.json()["messages"][-1]["content"] == "실제 서버 WebSocket 확인"
         session = client.post(
             "/sessions",
             headers=headers,
-            json={"room_id": room.json()["room"]["id"], "topic": "직선의 방정식"},
+            json={"room_id": room_id, "topic": "직선의 방정식"},
         )
         session.raise_for_status()
         session_id = session.json()["session"]["id"]
@@ -66,6 +82,7 @@ def main() -> None:
         print("completed sessions:", dashboard.json()["summary"]["completed_sessions"])
         print("generated notes:", notes.json()["count"])
         print("quiz questions:", question_count)
+        print("room chat messages:", history.json()["count"])
 
 
 if __name__ == "__main__":

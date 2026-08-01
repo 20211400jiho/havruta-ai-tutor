@@ -16,6 +16,8 @@
 - RAG 자료 기반 복습 퀴즈 생성과 채점
 - 홈 통계, 캘린더, 마이페이지 실데이터 연동
 - React 회원가입/로그인, 학습방, AI 채팅, 노트, 퀴즈 UI
+- JWT·학습방 권한 검사를 적용한 실시간 그룹 채팅과 메시지 이력
+- Railway용 백엔드/프런트 Docker 배포, MySQL·Redis 연동 설정
 - SQLite 단위·통합 테스트 및 실제 MySQL HTTP 스모크 테스트
 
 ## 아키텍처
@@ -23,7 +25,7 @@
 ```mermaid
 flowchart LR
     Browser[React / Vite] -->|REST + JWT| API[FastAPI]
-    Browser -->|WebSocket| WS[Room Chat]
+    Browser -->|WebSocket + JWT| WS[Room Chat]
     API --> Auth[Auth / Rooms]
     API --> Tutor[Havruta Tutor]
     API --> Content[Notes / Quizzes / Dashboard]
@@ -32,6 +34,8 @@ flowchart LR
     Auth --> DB[(MySQL)]
     Tutor --> DB
     Content --> DB
+    WS --> DB
+    WS --> Redis[(Redis Pub/Sub)]
     RAG --> DB
     JSON[AITraining JSON 10 files] --> RAG
 ```
@@ -80,6 +84,12 @@ npm run dev -- --host 127.0.0.1
 
 프런트 주소: <http://127.0.0.1:5173>
 
+## Railway 배포
+
+이 저장소에는 Railway가 직접 빌드할 수 있는 백엔드·프런트 Dockerfile과 배포 설정이 포함되어 있습니다. Railway 프로젝트에 `MySQL`, `Redis`, `Backend`, `Frontend` 네 서비스를 구성하면 됩니다.
+
+전체 순서와 환경변수는 [`docs/RAILWAY_DEPLOYMENT.md`](docs/RAILWAY_DEPLOYMENT.md)를 따르세요. 백엔드는 배포 전에 스키마를 자동 생성·업그레이드하고, 프런트는 Railway의 공개 API 및 WebSocket 주소를 빌드 시 주입받습니다.
+
 ## 환경변수
 
 | 이름 | 기본/예시 | 설명 |
@@ -89,6 +99,8 @@ npm run dev -- --host 127.0.0.1
 | `DB_USER` | `havruta_app` | 애플리케이션 DB 사용자 |
 | `DB_PASSWORD` | 필수 | DB 비밀번호 |
 | `DB_NAME` | `havruta_ai_tutor` | DB 이름 |
+| `DATABASE_URL` | Railway `MYSQL_URL` 참조 | 설정하면 개별 `DB_*`보다 우선 |
+| `REDIS_URL` | Railway Redis URL | 다중 인스턴스 WebSocket 브로드캐스트 |
 | `JWT_SECRET_KEY` | 필수 | 운영 시 긴 무작위 문자열 사용 |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | 허용할 프런트 주소 |
 | `AI_PROVIDER` | `local` | `local` 또는 `ollama` |
@@ -114,6 +126,7 @@ npm run dev -- --host 127.0.0.1
 | 퀴즈 채점 | POST | `/quizzes/{id}/submit` |
 | 내 학습 통계 | GET | `/dashboard/me` |
 | 그룹 WebSocket | WS | `/chat/ws/{room_id}` |
+| 그룹 채팅 이력 | GET | `/chat/rooms/{room_id}/messages` |
 
 ## 테스트
 
@@ -160,6 +173,6 @@ tests/              # API 자동화 테스트
 - `.env`의 JWT 키와 DB 비밀번호 교체
 - `mysql_secure_installation` 실행 및 root 계정 보호
 - Alembic 기반 정식 마이그레이션 체계 도입
-- WebSocket에 JWT 및 학습방 멤버 권한 검사 추가
+- WebSocket 연결 제한, 메시지 신고·감사 정책 적용
 - 프롬프트 인젝션, 요청 제한, 감사 로그, 백업 정책 적용
 - 현재 규칙 기반 평가를 실제 교육 평가셋으로 검증

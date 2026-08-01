@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+export const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export function getToken() {
   return localStorage.getItem("havruta_token");
@@ -7,6 +7,12 @@ export function getToken() {
 export function setToken(token) {
   if (token) localStorage.setItem("havruta_token", token);
   else localStorage.removeItem("havruta_token");
+}
+
+export function getWebSocketUrl(roomId) {
+  const configuredUrl = import.meta.env.VITE_WS_URL?.replace(/\/$/, "");
+  const baseUrl = configuredUrl || API_URL.replace(/^http/, "ws");
+  return `${baseUrl}/chat/ws/${roomId}`;
 }
 
 export async function api(path, options = {}) {

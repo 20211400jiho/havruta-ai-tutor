@@ -127,18 +127,21 @@ flowchart LR
     RAG[RAG 검색]
     Content[노트·퀴즈·통계]
     WS[WebSocket 그룹 채팅]
+    Redis[(Redis Pub/Sub)]
     MySQL[(MySQL)]
     JSON[고1 수학 JSON]
     Ollama[Ollama 선택]
 
     Student --> React
     React -->|REST + Bearer JWT| API
-    React -.->|WebSocket| WS
+    React -.->|WebSocket + JWT| WS
     API --> Auth
     API --> Room
     API --> Tutor
     API --> Content
     API --> WS
+    WS --> MySQL
+    WS --> Redis
     Tutor --> RAG
     Tutor -.-> Ollama
     Auth --> MySQL
@@ -181,7 +184,7 @@ sequenceDiagram
 │   │   ├── base.py               # SQLAlchemy Base
 │   │   ├── config.py             # 환경변수 설정
 │   │   └── connection.py         # 엔진과 세션
-│   ├── models/                   # 14개 테이블 ORM
+│   ├── models/                   # 15개 테이블 ORM
 │   ├── routers/                  # HTTP/WebSocket 엔드포인트
 │   ├── schemas/                  # 요청/응답 검증
 │   ├── services/                 # RAG, 튜터, 콘텐츠 생성
@@ -193,7 +196,7 @@ sequenceDiagram
 │       ├── api.js                 # 공통 API 클라이언트
 │       ├── AuthView.jsx           # 로그인/회원가입
 │       ├── StudyView.jsx          # AI 학습
-│       ├── StudyRoomView.jsx      # 학습방
+│       ├── StudyRoomView.jsx      # 학습방·실시간 채팅
 │       ├── NoteView.jsx           # 정리노트
 │       ├── QuizView.jsx           # 복습 퀴즈
 │       ├── CalendarView.jsx       # 학습 캘린더
@@ -207,7 +210,7 @@ sequenceDiagram
 
 ## 7. 데이터베이스 설계
 
-현재 MySQL에는 14개 도메인 테이블이 사용된다.
+현재 MySQL에는 15개 도메인 테이블이 사용된다.
 
 ```mermaid
 erDiagram
@@ -217,6 +220,8 @@ erDiagram
     USERS ||--o{ CHAT_SESSIONS : starts
     LEARNING_ROOMS ||--o{ CHAT_SESSIONS : contains
     CHAT_SESSIONS ||--o{ MESSAGES : contains
+    USERS ||--o{ ROOM_CHAT_MESSAGES : writes
+    LEARNING_ROOMS ||--o{ ROOM_CHAT_MESSAGES : stores
     CHAT_SESSIONS ||--o{ AI_FEEDBACKS : has
     MESSAGES ||--o{ AI_FEEDBACKS : evaluated
     DOCUMENTS ||--o{ DOCUMENT_CHUNKS : splits
@@ -236,6 +241,7 @@ erDiagram
 | `users` | email, password_hash, name, grade, role | 사용자 계정 |
 | `learning_rooms` | title, subject, grade, owner_id, invite_code, max_members | 학습 공간 |
 | `room_members` | room_id, user_id, joined_at | 학습방 참여자 |
+| `room_chat_messages` | room_id, user_id, content, created_at | 실시간 그룹 채팅 이력 |
 
 `room_members`에는 `(room_id, user_id)` 유니크 제약이 있어 같은 사용자가 중복 참여할 수 없다. 초대 코드는 대문자와 숫자로 구성된 6자리 값이다.
 
@@ -507,7 +513,7 @@ python -m src.query_math_chroma
 ws://127.0.0.1:8000/chat/ws/{room_id}
 ```
 
-같은 `room_id`로 연결된 사용자에게 받은 문자열을 브로드캐스트한다. 현재 WebSocket은 원격 `main`의 기능을 보존한 것으로 JWT 인증과 DB 메시지 저장은 아직 적용되지 않았다.
+연결 직후 `{ "type": "authenticate", "token": "JWT" }`를 보내면 JWT와 활성 학습방의 소유자·멤버 권한을 확인한다. 토큰을 URL에 넣지 않으므로 일반 접근 로그에 노출되지 않는다. 이후 `{ "content": "메시지" }` 형식으로 전송한 메시지는 MySQL에 저장되고 같은 방 사용자에게 구조화된 이벤트로 전달된다. 과거 메시지는 `GET /chat/rooms/{room_id}/messages`로 복원한다. Redis가 설정되면 여러 백엔드 인스턴스 사이에서도 이벤트가 전달된다.
 
 ## 11. 프런트엔드 화면
 
@@ -780,6 +786,8 @@ brew services start mysql
 - Bearer 인증
 - 사용자별 리소스 접근 확인
 - 학습방 멤버 권한 확인
+- WebSocket JWT·학습방 권한 확인
+- 그룹 채팅 입력 길이 제한과 MySQL 영속화
 - 환경변수 비밀값 분리
 - CORS 허용 주소 제한
 - 점수와 유니크 DB 제약
@@ -791,7 +799,6 @@ brew services start mysql
 - HTTPS
 - Refresh Token과 로그아웃 토큰 폐기
 - 로그인 횟수 제한
-- WebSocket 인증
 - 입력 길이와 업로드 파일 보안
 - 감사 로그와 접근 기록
 - 개인정보 보존 및 삭제 정책
@@ -813,7 +820,7 @@ AITraining 자료는 고1 수학 JSON 10건으로 제한돼 있다. 다른 단�
 
 ### 17.4 WebSocket
 
-그룹 채팅 브로드캐스트만 제공한다. 인증, 방 멤버 검사, 메시지 저장, 재접속 복구가 필요하다.
+JWT 인증, 학습방 멤버 검사, 메시지 DB 저장, 브라우저 재접속, Redis 기반 다중 인스턴스 브로드캐스트를 구현했다. 아직 읽음 상태, 신고, 운영자 감사 화면은 제공하지 않는다.
 
 ### 17.5 DB 마이그레이션
 
@@ -842,9 +849,8 @@ AITraining 자료는 고1 수학 JSON 10건으로 제한돼 있다. 다른 단�
 
 ### 3순위 — 실시간 협업
 
-- WebSocket JWT 인증
-- 참여자 메시지 영속화
-- 연결 복구와 읽음 상태
+- 읽음 상태와 미확인 메시지 표시
+- 메시지 신고와 운영자 감사 화면
 - 교사 세션 관찰과 개입
 
 ### 4순위 — 사용자 경험
@@ -855,12 +861,10 @@ AITraining 자료는 고1 수학 JSON 10건으로 제한돼 있다. 다른 단�
 - 모바일 반응형 개선
 - 설정 서버 저장
 
-### 5순위 — 배포
+### 5순위 — 배포 운영 고도화
 
-- 프런트 정적 호스팅
-- FastAPI 운영 서버
-- 관리형 MySQL
-- HTTPS와 도메인
+- Railway 사용자 계정에서 최초 서비스 생성
+- 커스텀 도메인 연결
 - 모니터링, 알림, 백업
 
 ## 19. Git 작업 방법
@@ -899,8 +903,10 @@ git switch -c feature/기능명
 | 정리노트 | 구현·검증 완료 |
 | 퀴즈 | 구현·검증 완료 |
 | 통계·캘린더 | 구현 완료 |
-| 자동화 테스트 | 4개 통과 |
+| 실시간 그룹 채팅 | 인증·저장·Redis 연동 완료 |
+| Railway 배포 구성 | Docker·환경변수·상태 확인 구성 완료 |
+| 자동화 테스트 | 5개 통과 |
 | 프런트 린트/빌드 | 통과 |
-| 운영 배포 | 미진행 |
+| Railway 실제 배포 | 계정 로그인 후 진행 가능 |
 
-현재 프로젝트는 **로컬 통합 MVP 완료 단계**다. 실제 사용자 대상 운영 서비스로 전환하려면 이 문서의 보안, 마이그레이션, AI 평가 검증, WebSocket 인증, 배포 항목을 추가로 수행해야 한다.
+현재 프로젝트는 **Railway 배포 가능한 통합 MVP 단계**다. 실제 사용자 대상 운영 서비스로 전환하려면 계정에서 최초 배포 후 보안, 정식 마이그레이션, 백업, 모니터링과 AI 평가 검증을 계속 수행해야 한다. 구체적인 배포 순서는 `docs/RAILWAY_DEPLOYMENT.md`에 있다.

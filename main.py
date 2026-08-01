@@ -15,6 +15,7 @@ from app.routers.room import router as room_router
 from app.routers.root import router as root_router
 from app.routers.sessions import router as sessions_router
 from app.services.rag_service import index_local_documents
+from app.services.connection_manager import manager
 
 
 @asynccontextmanager
@@ -25,7 +26,11 @@ async def lifespan(_: FastAPI):
         index_local_documents(db)
     finally:
         db.close()
-    yield
+    await manager.start()
+    try:
+        yield
+    finally:
+        await manager.stop()
 
 
 app = FastAPI(
