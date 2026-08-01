@@ -4,6 +4,14 @@
 
 고등학생이 AI와 질문·설명·피드백을 반복하며 학습하는 하브루타 튜터 MVP입니다. GitHub의 `main`, `AITraining`, `front` 브랜치를 하나의 `integration` 브랜치로 통합했습니다.
 
+## 공개 테스트
+
+- 웹앱: <https://frontend-production-8c41.up.railway.app>
+- 백엔드 API: <https://backend-production-98f3.up.railway.app>
+- Swagger 문서: <https://backend-production-98f3.up.railway.app/docs>
+
+현재 Railway Hobby의 MySQL·Redis·Backend·Frontend 네 서비스가 실행 중입니다. 각 사용자가 웹앱에서 직접 가입한 뒤 학습방 초대 코드로 함께 테스트할 수 있습니다.
+
 ## 구현된 기능
 
 - 이메일 회원가입과 로그인, Argon2 비밀번호 해싱, JWT 인증

@@ -2,6 +2,22 @@
 
 이 문서는 `DB` 브랜치의 통합 프로젝트를 Railway에 배포하는 절차다. 최종 구성은 네 서비스다.
 
+## 현재 배포 상태
+
+2026-08-01 기준 Railway Hobby에 실제 배포와 외부 종단 간 검증을 완료했다.
+
+| 항목 | 주소·상태 |
+|---|---|
+| Frontend | <https://frontend-production-8c41.up.railway.app> |
+| Backend | <https://backend-production-98f3.up.railway.app> |
+| Swagger | <https://backend-production-98f3.up.railway.app/docs> |
+| MySQL | Railway private network, `SUCCESS` |
+| Redis | Railway private network, `SUCCESS` |
+| 배포 브랜치 | GitHub `DB` |
+| 배포 커밋 | `17ec8ca` |
+
+실제 공개 주소에서 회원가입, CORS, MySQL 저장, JWT WebSocket 인증, 메시지 영속화를 검증했다. 기본 AI 모드는 GPT API나 Ollama를 호출하지 않는 `AI_PROVIDER=local`이다.
+
 ```mermaid
 flowchart LR
     User[사용자 브라우저] -->|HTTPS| Front[Frontend · React/Nginx]
