@@ -8,6 +8,20 @@
     background: #f8fafc;
     padding: 20px;
 }
+.room-panel { width: min(900px, 100%); align-self: flex-start; padding: 32px; border-radius: 22px; background: white; box-shadow: 0 10px 36px rgba(38, 65, 120, .1); }
+.room-panel header p { color: #64748b; }
+.room-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 28px 0; }
+.room-actions form { display: flex; flex-direction: column; gap: 12px; padding: 20px; border-radius: 16px; background: #f8fafc; }
+.room-actions h3 { margin: 0; }
+.room-actions input { padding: 12px; border: 1px solid #dbe3f2; border-radius: 10px; }
+.room-notice, .room-error { margin: 12px 0; padding: 12px 14px; border-radius: 10px; }
+.room-notice { background: #ecfdf5; color: #047857; }
+.room-error { background: #fff1f2; color: #be123c; }
+.room-list { margin-top: 26px; }
+.room-item { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 0; border-bottom: 1px solid #e5e7eb; }
+.room-item p { margin: 6px 0 0; color: #64748b; }
+.room-item button { border: 0; border-radius: 9px; padding: 9px 12px; color: #31549d; background: #edf4ff; cursor: pointer; }
+@media (max-width: 700px) { .room-actions { grid-template-columns: 1fr; } }
 
 /* 카드 중앙 정렬 */
 .center-card {

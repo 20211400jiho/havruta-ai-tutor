@@ -31,6 +31,7 @@ body {
   border-right: 1px solid #ddd;
   padding: 20px;
 }
+.sidebar-logout { margin: auto 16px 20px; padding: 11px; border: 1px solid rgba(255,255,255,.35); border-radius: 10px; color: white; background: transparent; cursor: pointer; }
 
 .logo {
   font-size: 22px;

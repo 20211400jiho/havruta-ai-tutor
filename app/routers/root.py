@@ -14,5 +14,7 @@ router = APIRouter(
 )
 def root():
     return {
-        "message": "하브루타 AI 튜터 백엔드 서버입니다!"
+        "status": "ok",
+        "service": "havruta-ai-tutor",
+        "docs": "/docs",
     }

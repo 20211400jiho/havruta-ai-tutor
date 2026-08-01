@@ -1,60 +1,30 @@
-import React from 'react';
-import './MyPageView.css';
+import { useEffect, useState } from "react";
+import { api } from "./api";
+import "./MyPageView.css";
 
-export default function MyPageView() {
-    const userData = {
-    name: "00",
-    tier: "Gold",
-    exp: 75,
-    dDay: "수능 D-120",
-    badges: ["열공러", "얼리버드", "퀴즈왕"],
-    stats: [
-        { subject: "과학", hours: 12 },
-        { subject: "수학", hours: 8 },
-        { subject: "역사", hours: 5 },
-    ]
-    };
-
-    return (
+export default function MyPageView({ user }) {
+  const [dashboard, setDashboard] = useState(null);
+  useEffect(() => { api("/dashboard/me").then(setDashboard).catch(() => {}); }, []);
+  const summary = dashboard?.summary || { completed_sessions: 0, total_messages: 0, average_score: null };
+  return (
     <main className="my-page-container">
-      {/* 1. 상단 프로필 영역 */}
-        <div className="profile-card">
-        <div className="avatar">YEJI</div>
-        <div className="user-info">
-            <h2>{userData.name}</h2>
-            <span className="tier-badge">{userData.tier} Tier</span>
-        </div>
-        <div className="exp-section">
-            <p>레벨업까지 {100 - userData.exp}% 남음</p>
-            <div className="progress-bg"><div className="progress-fill" style={{ width: `${userData.exp}%` }}></div></div>
-        </div>
-        </div>
-
-      {/* 2. D-Day 및 학습 통계 */}
-        <div className="grid-section">
-        <div className="dday-card">
-            <h3>오늘의 목표</h3>
-            <p className="dday-text">{userData.dDay}</p>
-        </div>
+      <div className="profile-card">
+        <div className="avatar">{user.name.slice(0, 2).toUpperCase()}</div>
+        <div className="user-info"><h2>{user.name}</h2><span className="tier-badge">{user.grade || "학년 미설정"}</span></div>
+        <div className="exp-section"><p>{user.email}</p><p>역할: {user.role}</p></div>
+      </div>
+      <div className="grid-section">
+        <div className="dday-card"><h3>완료한 학습</h3><p className="dday-text">{summary.completed_sessions}회</p></div>
         <div className="stats-card">
-            <h3>이번 주 학습 시간</h3>
-            {userData.stats.map((s, i) => (
-            <div key={i} className="stat-row">
-                <span>{s.subject}</span>
-              <div className="bar"><div className="fill" style={{ width: `${s.hours * 5}%` }}></div></div>
-                <span>{s.hours}h</span>
-            </div>
-            ))}
+          <h3>누적 학습 통계</h3>
+          <p>대화 메시지 {summary.total_messages}개</p>
+          <p>AI 평가 평균 {summary.average_score ?? "-"}점</p>
         </div>
-        </div>
-
-      {/* 3. 배지 영역 */}
-        <div className="badge-section">
-        <h3>나의 훈장</h3>
-        <div className="badge-list">
-            {userData.badges.map((b, i) => <div key={i} className="badge-item">🏅 {b}</div>)}
-        </div>
-        </div>
+      </div>
+      <div className="badge-section"><h3>최근 학습 기록</h3><div className="badge-list">
+        {(dashboard?.recent_records || []).map((record) => <div key={record.id} className="badge-item">🏅 {record.average_score ?? "-"}점 · {record.total_messages}개 메시지</div>)}
+        {!dashboard?.recent_records?.length && <p>완료한 학습 세션이 아직 없습니다.</p>}
+      </div></div>
     </main>
-    );
+  );
 }

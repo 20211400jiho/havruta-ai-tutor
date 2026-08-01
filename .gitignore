@@ -12,3 +12,9 @@ chroma_db/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Test and build artifacts
+.pytest_cache/
+my-app/node_modules/
+my-app/dist/
+*.db

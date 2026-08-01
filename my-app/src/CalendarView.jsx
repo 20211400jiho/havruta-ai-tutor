@@ -1,12 +1,15 @@
 // CalendarView.jsx
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './CalendarView.css';
+import { api } from './api';
 
 export default function CalendarView() {
   // 1. 현재 시스템의 실시간 날짜를 초기값으로 설정
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(today); // 달력 내비게이션용 (년, 월)
   const [selectedDate, setSelectedDate] = useState(today); // 우측 리포트 표시용 (년, 월, 일)
+  const [records, setRecords] = useState([]);
+  useEffect(() => { api('/dashboard/me').then((result) => setRecords(result.recent_records || [])).catch(() => {}); }, []);
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth(); // 0 = 1월, 11 = 12월
@@ -72,28 +75,18 @@ export default function CalendarView() {
 
   const calendarDays = generateCalendarDays();
 
-  const learningRecords = {
-    "2026-08-20": {
-      dateText: "8월 20일 (목)",
-      records: [
-        { title: "광합성 학습", detail: "30분", color: "#4f7df3" },
-        { title: "복습 퀴즈", detail: "20분", color: "#6366f1" }
-      ],
-      notes: ["광합성 핵심 요약"],
-      quizResult: "정답 8 / 10 (80%)",
-      totalTime: "50분"
-    },
-
-    [`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`]: {
-      dateText: `${today.getMonth() + 1}월 ${today.getDate()}일 (오늘)`,
-      records: [
-        { title: "광합성", detail: "40분", color: "#4f7df3" }
-      ],
-      notes: ["식물의 광합성 과정"],
-      quizResult: "정답 10 / 10 (100%)",
-      totalTime: "40분"
-    }
-  };
+  const learningRecords = records.reduce((accumulator, record) => {
+    if (!record.completed_at) return accumulator;
+    const date = new Date(record.completed_at);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const current = accumulator[key] || { dateText: `${date.getMonth() + 1}월 ${date.getDate()}일`, records: [], notes: [], quizResult: null, totalTime: '0회' };
+    current.records.push({ title: record.topic || '하브루타 학습', detail: `${record.total_messages}개 메시지`, color: '#4f7df3' });
+    current.notes.push(`${record.topic || '학습'} 핵심 정리`);
+    current.quizResult = record.average_score == null ? null : `AI 평가 ${record.average_score}점`;
+    current.totalTime = `학습 ${current.records.length}회`;
+    accumulator[key] = current;
+    return accumulator;
+  }, {});
 
   const selectedDateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   

@@ -1,5 +1,4 @@
 // Sidebar.jsx
-import React from "react";
 import "./Home.css";
 
 // 사이드바 이미지 임포트
@@ -23,7 +22,7 @@ const menus = [
   { icon: settingIcon, text: "설정" },
 ];
 
-export default function Sidebar({ activeMenu, setActiveMenu }) {
+export default function Sidebar({ activeMenu, setActiveMenu, onLogout }) {
   return (
     <aside className="sidebar">
       <div className="logo">AI Study</div>
@@ -39,6 +38,7 @@ export default function Sidebar({ activeMenu, setActiveMenu }) {
           </li>
         ))}
       </ul>
+      <button className="sidebar-logout" onClick={onLogout}>로그아웃</button>
     </aside>
   );
 }

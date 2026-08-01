@@ -3,7 +3,7 @@ from pathlib import Path
 import chromadb
 from sentence_transformers import SentenceTransformer
 
-from load_math_json import load_high1_math
+from src.load_math_json import load_high1_math
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -35,11 +35,11 @@ def get_chroma_collection():
 
 
 def index_high1_math():
-    df = load_high1_math()
+    rows = load_high1_math()
 
-    print("로드된 데이터 개수:", len(df))
+    print("로드된 데이터 개수:", len(rows))
 
-    if df.empty:
+    if not rows:
         raise ValueError("로드된 데이터가 없습니다.")
 
     model = get_embedding_model()
@@ -49,7 +49,7 @@ def index_high1_math():
     documents = []
     metadatas = []
 
-    for _, row in df.iterrows():
+    for row in rows:
         doc_text = build_text_for_embedding(row)
 
         ids.append(row["id"])

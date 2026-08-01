@@ -1,15 +1,18 @@
 // Home.jsx
-import React from "react";
+import { useEffect, useState } from "react";
 import "./Home.css";
 import HomeAi from "./assets/Home_ai.png";
+import { api } from "./api";
 
-export default function Home({ setActiveMenu }) {
-  // 오늘의 학습 현황용 더미 데이터
+export default function Home({ setActiveMenu, user }) {
+  const [dashboard, setDashboard] = useState(null);
+  useEffect(() => { api("/dashboard/me").then(setDashboard).catch(() => {}); }, []);
+  const summary = dashboard?.summary || { completed_sessions: 0, total_messages: 0, average_score: null };
   const todayStatus = {
-    studyTime: { title: "학습 시간", value: "1시간 20분", sub: "목표 2시간", progress: 66.6 },
-    achievement: { title: "학습 성취도", value: "75%", sub: "목표 90%", progress: 75 },
-    quizzes: { title: "완료한 퀴즈", value: "8 / 12", sub: "문제" },
-    notes: { title: "생성한 노트", value: "3개", sub: "오늘" }
+    studyTime: { title: "완료한 학습", value: `${summary.completed_sessions}회`, sub: "누적 세션", progress: Math.min(100, summary.completed_sessions * 10) },
+    achievement: { title: "학습 성취도", value: `${summary.average_score ?? 0}%`, sub: "AI 평가 평균", progress: summary.average_score ?? 0 },
+    quizzes: { title: "대화 메시지", value: `${summary.total_messages}개`, sub: "누적" },
+    notes: { title: "학습 기록", value: `${dashboard?.recent_records?.length ?? 0}개`, sub: "최근" }
   };
 
   return (
@@ -17,7 +20,7 @@ export default function Home({ setActiveMenu }) {
       {/* 1. 상단 헤더 (인사말 및 AI 튜터 카드) */}
       <div className="header">
         <div>
-          <h1 className="hello">안녕하세요, 00님!</h1>
+          <h1 className="hello">안녕하세요, {user?.name}님!</h1>
           <p className="cheer">오늘도 꾸준히 학습해봐요!</p>
         </div>
 
@@ -125,18 +128,12 @@ export default function Home({ setActiveMenu }) {
       <div className="bottom-section" style={{ marginTop: '40px' }}>
         <div className="history">
           <h3>최근 학습 기록</h3>
-          <ul>
-            <li>광합성과 식물의 호흡</li>
-            <li>이차함수의 최대 최소</li>
-            <li>삼국 성립과 발전</li>
-          </ul>
+          <ul>{(dashboard?.recent_records || []).slice(0, 3).map((record) => <li key={record.id}>{record.topic || "하브루타 학습"} · {record.average_score ?? "-"}점</li>)}</ul>
         </div>
 
         <div className="weekly">
           <h3>주간 학습 기록</h3>
-          <div className="graph-box">
-            그래프 영역
-          </div>
+          <div className="graph-box">완료 세션 {summary.completed_sessions}회 · 총 메시지 {summary.total_messages}개</div>
         </div>
       </div>
     </main>

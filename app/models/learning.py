@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -21,13 +21,12 @@ class LearningRoom(Base):
     subject: Mapped[str | None] = mapped_column(String(100))
     grade: Mapped[str | None] = mapped_column(String(50))
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    invite_code: Mapped[str] = mapped_column(String(10), unique=True, index=True, nullable=False)
+    max_members: Mapped[int] = mapped_column(default=2, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default=RoomStatus.ACTIVE.value, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
     owner = relationship("User", back_populates="owned_rooms")
@@ -38,6 +37,7 @@ class LearningRoom(Base):
 
 class RoomMember(Base):
     __tablename__ = "room_members"
+    __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_room_member"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     room_id: Mapped[int] = mapped_column(ForeignKey("learning_rooms.id"), nullable=False)
@@ -54,7 +54,7 @@ class LearningRecord(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     room_id: Mapped[int] = mapped_column(ForeignKey("learning_rooms.id"), nullable=False)
-    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"), nullable=False)
+    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"), unique=True, nullable=False)
     total_messages: Mapped[int] = mapped_column(default=0, nullable=False)
     ai_score_avg: Mapped[int | None]
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)

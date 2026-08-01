@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import './SettingsView.css';
 
 export default function SettingsView({ isDarkMode, toggleDarkMode, isReminderEnabled, toggleReminder }) {
