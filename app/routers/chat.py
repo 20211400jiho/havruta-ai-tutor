@@ -1,52 +1,118 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import asyncio
+import json
 
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from sqlalchemy.orm import Session, joinedload
+
+from app.database.connection import get_db
+from app.dependencies import get_current_user
+from app.models.chat import RoomChatMessage
+from app.models.learning import LearningRoom, RoomMember
+from app.models.user import User
 from app.services.connection_manager import manager
-from app.services.ai_service import ask_gpt
+from app.utils.security import verify_access_token
 
 
-router = APIRouter(
-    prefix="/chat",
-    tags=["실시간 채팅"]
-)
+router = APIRouter(prefix="/chat", tags=["실시간 채팅"])
+
+
+def has_room_access(db: Session, room_id: int, user_id: int) -> bool:
+    room = db.get(LearningRoom, room_id)
+    if room is None or room.status != "active":
+        return False
+    if room.owner_id == user_id:
+        return True
+    return db.query(RoomMember).filter_by(room_id=room_id, user_id=user_id).first() is not None
+
+
+def chat_message_dict(message: RoomChatMessage) -> dict:
+    return {
+        "id": message.id,
+        "room_id": message.room_id,
+        "user_id": message.user_id,
+        "user_name": message.user.name,
+        "content": message.content,
+        "created_at": message.created_at,
+    }
+
+
+@router.get("/rooms/{room_id}/messages")
+def room_message_history(
+    room_id: int,
+    limit: int = Query(default=100, ge=1, le=200),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if not has_room_access(db, room_id, user.id):
+        raise HTTPException(status_code=403, detail="학습방 채팅 접근 권한이 없습니다.")
+    messages = (
+        db.query(RoomChatMessage)
+        .options(joinedload(RoomChatMessage.user))
+        .filter(RoomChatMessage.room_id == room_id)
+        .order_by(RoomChatMessage.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    messages.reverse()
+    return {"count": len(messages), "messages": [chat_message_dict(message) for message in messages]}
 
 
 @router.websocket("/ws/{room_id}")
 async def websocket_chat(
     websocket: WebSocket,
-    room_id: int
-):
-    """
-    사용자가 보낸 메시지를 같은 방에 전달하고,
-    GPT가 생성한 답변도 같은 방에 전달한다.
-    """
+    room_id: int,
+    db: Session = Depends(get_db),
+) -> None:
+    await websocket.accept()
+    try:
+        auth_message = await asyncio.wait_for(websocket.receive_text(), timeout=10)
+        auth_payload = json.loads(auth_message)
+        token = str(auth_payload.get("token", "")) if auth_payload.get("type") == "authenticate" else ""
+    except (TimeoutError, json.JSONDecodeError, WebSocketDisconnect):
+        await websocket.close(code=4401, reason="인증 메시지가 필요합니다.")
+        return
 
-    # 사용자를 학습방 WebSocket에 연결한다.
-    await manager.connect(room_id, websocket)
+    user_id = verify_access_token(token)
+    user = db.get(User, user_id) if user_id else None
+    if user is None:
+        await websocket.close(code=4401, reason="인증이 필요합니다.")
+        return
+    if not has_room_access(db, room_id, user.id):
+        await websocket.close(code=4403, reason="학습방 접근 권한이 없습니다.")
+        return
 
+    manager.connect(room_id, websocket)
+    await websocket.send_json({"type": "authenticated", "user_id": user.id, "room_id": room_id})
+    await manager.broadcast(
+        room_id,
+        {"type": "presence", "action": "joined", "user_id": user.id, "user_name": user.name},
+    )
     try:
         while True:
-            # 사용자 메시지를 받는다.
-            user_message = await websocket.receive_text()
+            raw_message = await websocket.receive_text()
+            try:
+                incoming = json.loads(raw_message)
+                content = str(incoming.get("content", "")).strip()
+            except json.JSONDecodeError:
+                content = raw_message.strip()
+            if not content:
+                await websocket.send_json({"type": "error", "detail": "메시지를 입력해주세요."})
+                continue
+            if len(content) > 5000:
+                await websocket.send_json({"type": "error", "detail": "메시지는 5000자까지 입력할 수 있습니다."})
+                continue
 
-            # 사용자 메시지를 같은 방 사람들에게 전달한다.
-            await manager.broadcast(
-                room_id,
-                f"사용자: {user_message}"
-            )
-
-            # GPT에게 사용자 메시지를 보내고 답변을 받는다.
-            ai_response = await ask_gpt(user_message)
-
-            # GPT 답변을 같은 방 사람들에게 전달한다.
-            await manager.broadcast(
-                room_id,
-                f"AI 튜터: {ai_response}"
-            )
-
+            message = RoomChatMessage(room_id=room_id, user_id=user.id, content=content)
+            db.add(message)
+            db.commit()
+            db.refresh(message)
+            message.user = user
+            await manager.broadcast(room_id, {"type": "message", "message": chat_message_dict(message)})
     except WebSocketDisconnect:
-        # 연결이 종료되면 접속 목록에서 제거한다.
+        pass
+    finally:
         manager.disconnect(room_id, websocket)
-
-    except Exception as error:
-        print(f"WebSocket 오류: {error}")
-        manager.disconnect(room_id, websocket)
+        await manager.broadcast(
+            room_id,
+            {"type": "presence", "action": "left", "user_id": user.id, "user_name": user.name},
+        )

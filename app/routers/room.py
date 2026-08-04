@@ -1,205 +1,115 @@
-import random
+import secrets
 import string
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.database.database import get_db
-from app.models.room import Room
+from app.database.connection import get_db
+from app.dependencies import get_current_user
+from app.models.learning import LearningRoom, RoomMember
 from app.models.user import User
 from app.schemas.room import RoomCreateRequest, RoomJoinRequest
-from app.utils.security import verify_access_token
 
 
-router = APIRouter(
-    prefix="/rooms",
-    tags=["학습방"]
-)
-
-# Swagger에서 JWT 토큰을 입력받기 위한 설정
-security = HTTPBearer()
+router = APIRouter(prefix="/rooms", tags=["학습방"])
+ALPHABET = string.ascii_uppercase + string.digits
 
 
-# 중복되지 않는 초대 코드 생성
+def room_dict(room: LearningRoom) -> dict:
+    return {
+        "id": room.id,
+        "title": room.title,
+        "subject": room.subject,
+        "grade": room.grade,
+        "owner_id": room.owner_id,
+        "invite_code": room.invite_code,
+        "max_members": room.max_members,
+        "status": room.status,
+        "member_count": len(room.members),
+        "created_at": room.created_at,
+    }
+
+
 def create_invite_code(db: Session) -> str:
     while True:
-        invite_code = "".join(
-            random.choices(
-                string.ascii_uppercase + string.digits,
-                k=6
-            )
-        )
-
-        existing_room = (
-            db.query(Room)
-            .filter(Room.invite_code == invite_code)
-            .first()
-        )
-
-        if existing_room is None:
-            return invite_code
+        code = "".join(secrets.choice(ALPHABET) for _ in range(6))
+        if not db.query(LearningRoom).filter(LearningRoom.invite_code == code).first():
+            return code
 
 
-# 학습방 목록 조회
-@router.get(
-    "",
-    summary="학습방 목록 조회",
-    description="현재 생성된 모든 학습방 목록을 조회합니다."
-)
-def get_rooms(db: Session = Depends(get_db)):
+@router.get("")
+def list_rooms(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     rooms = (
-        db.query(Room)
-        .order_by(Room.created_at.desc())
+        db.query(LearningRoom)
+        .outerjoin(RoomMember)
+        .filter(or_(LearningRoom.owner_id == user.id, RoomMember.user_id == user.id))
+        .order_by(LearningRoom.created_at.desc())
+        .distinct()
         .all()
     )
-
-    return {
-        "message": "학습방 목록을 조회했습니다.",
-        "count": len(rooms),
-        "rooms": [
-            {
-                "room_id": room.room_id,
-                "title": room.title,
-                "invite_code": room.invite_code,
-                "creator_id": room.creator_id,
-                "max_members": room.max_members,
-                "created_at": room.created_at
-            }
-            for room in rooms
-        ]
-    }
+    return {"count": len(rooms), "rooms": [room_dict(room) for room in rooms]}
 
 
-# 학습방 상세 조회
-@router.get(
-    "/{room_id}",
-    summary="학습방 상세 조회",
-    description="학습방 번호를 이용하여 특정 학습방의 정보를 조회합니다."
-)
-def get_room_detail(
-    room_id: int,
-    db: Session = Depends(get_db)
-):
-    room = (
-        db.query(Room)
-        .filter(Room.room_id == room_id)
-        .first()
-    )
-
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="학습방을 찾을 수 없습니다."
-        )
-
-    return {
-        "message": "학습방 상세 정보를 조회했습니다.",
-        "room": {
-            "room_id": room.room_id,
-            "title": room.title,
-            "invite_code": room.invite_code,
-            "creator_id": room.creator_id,
-            "max_members": room.max_members,
-            "created_at": room.created_at
-        }
-    }
-
-
-# 학습방 참여
-@router.post(
-    "/join",
-    summary="학습방 참여",
-    description="초대 코드를 입력하여 학습방에 참여합니다."
-)
-def join_room(
-    request: RoomJoinRequest,
-    db: Session = Depends(get_db)
-):
-    room = (
-        db.query(Room)
-        .filter(Room.invite_code == request.invite_code)
-        .first()
-    )
-
-    if room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="학습방을 찾을 수 없습니다."
-        )
-
-    return {
-        "message": "학습방 참여에 성공했습니다.",
-        "room": {
-            "room_id": room.room_id,
-            "title": room.title,
-            "invite_code": room.invite_code,
-            "creator_id": room.creator_id,
-            "max_members": room.max_members
-        }
-    }
-
-
-# 학습방 생성
-@router.post(
-    "/create",
-    summary="학습방 생성",
-    description="로그인한 사용자가 새로운 학습방을 생성합니다."
-)
+@router.post("", status_code=status.HTTP_201_CREATED)
 def create_room(
     request: RoomCreateRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
-):
-    # Authorization 헤더에서 JWT 토큰 가져오기
-    token = credentials.credentials
-
-    # JWT 토큰을 확인하여 사용자 번호 가져오기
-    user_id = verify_access_token(token)
-
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="유효하지 않거나 만료된 토큰입니다."
-        )
-
-    # 토큰에 저장된 사용자가 실제로 존재하는지 확인
-    user = (
-        db.query(User)
-        .filter(User.id == user_id)
-        .first()
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    room = LearningRoom(
+        title=request.title.strip(),
+        subject=request.subject,
+        grade=request.grade,
+        owner_id=user.id,
+        invite_code=create_invite_code(db),
+        max_members=request.max_members,
     )
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="사용자 정보를 찾을 수 없습니다."
-        )
-
-    # 새로운 초대 코드 생성
-    invite_code = create_invite_code(db)
-
-    # 학습방 정보 생성
-    new_room = Room(
-        title=request.title,
-        invite_code=invite_code,
-        creator_id=user.id,
-        max_members=request.max_members
-    )
-
-    # 데이터베이스에 학습방 저장
-    db.add(new_room)
+    db.add(room)
+    db.flush()
+    db.add(RoomMember(room_id=room.id, user_id=user.id))
     db.commit()
-    db.refresh(new_room)
+    db.refresh(room)
+    return {"message": "학습방이 생성되었습니다.", "room": room_dict(room)}
 
-    return {
-        "message": "학습방이 생성되었습니다.",
-        "room": {
-            "room_id": new_room.room_id,
-            "title": new_room.title,
-            "invite_code": new_room.invite_code,
-            "creator_id": new_room.creator_id,
-            "max_members": new_room.max_members,
-            "created_at": new_room.created_at
-        }
-    }
+
+@router.post("/join")
+def join_room(
+    request: RoomJoinRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    room = db.query(LearningRoom).filter(LearningRoom.invite_code == request.invite_code.upper()).first()
+    if room is None:
+        raise HTTPException(status_code=404, detail="초대 코드에 해당하는 학습방이 없습니다.")
+    if room.status != "active":
+        raise HTTPException(status_code=409, detail="종료된 학습방입니다.")
+    existing = db.query(RoomMember).filter_by(room_id=room.id, user_id=user.id).first()
+    if existing:
+        return {"message": "이미 참여한 학습방입니다.", "room": room_dict(room)}
+    if len(room.members) >= room.max_members:
+        raise HTTPException(status_code=409, detail="학습방 정원이 가득 찼습니다.")
+    db.add(RoomMember(room_id=room.id, user_id=user.id))
+    db.commit()
+    db.refresh(room)
+    return {"message": "학습방에 참여했습니다.", "room": room_dict(room)}
+
+
+@router.get("/{room_id}")
+def room_detail(
+    room_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    room = db.get(LearningRoom, room_id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="학습방을 찾을 수 없습니다.")
+    is_member = db.query(RoomMember).filter_by(room_id=room_id, user_id=user.id).first()
+    if room.owner_id != user.id and not is_member:
+        raise HTTPException(status_code=403, detail="학습방 접근 권한이 없습니다.")
+    result = room_dict(room)
+    result["members"] = [
+        {"id": member.user.id, "name": member.user.name, "role": member.user.role}
+        for member in room.members
+    ]
+    return {"room": result}

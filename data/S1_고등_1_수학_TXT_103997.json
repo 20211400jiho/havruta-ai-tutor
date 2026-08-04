@@ -1,0 +1,41 @@
+{
+    "raw_data_info" : {
+        "raw_data_name" : "6510923f-3b57-4151-9674-d33ca47c4f6f",
+        "date" : "2024-08-27",
+        "publisher" : "2차 저작",
+        "publication_year" : "2019-03-01",
+        "school" : "고등학교",
+        "grade" : "1학년",
+        "semester" : "공통",
+        "subject" : "수학",
+        "revision_year" : "2015"
+    },
+    "source_data_info" : {
+        "source_data_name" : "S1_고등_1_수학_TXT_103997",
+        "2009_achievement_standard" : [
+            " "
+        ],
+        "2015_achievement_standard" : [
+            "[10수학02-03] 직선의 방정식을 구할 수 있다."
+        ],
+        "2022_achievement_standard" : [
+            "[10공수2-01-02] 두 직선의 평행 조건과 수직 조건을 탐구하고 이해한다."
+        ]
+    },
+    "learning_data_info" : {
+        "learning_data_name" : "S1_고등_1_수학_TXT_103997",
+        "class_num" : 6,
+        "class_name" : "텍스트",
+        "bounding_box" : [
+            [
+                11.19,
+                0.75,
+                419.83,
+                131.75
+            ]
+        ],
+        "text_description" : "$x-2 y-3=0$은 $y=\\frac{1}{2} x-\\frac{3}{2}$에서 $x$ 절편은 $(3,0), y$ 절편은 $\\left(0,-\\frac{3}{2}\\right)$ 이다.",
+        "text_qa" : "x-2y-3=0은 y=1/2x-3/2에서 x절편과 y절편은?",
+        "text_an" : "x절편(3, 0), y절편은(0, -3/2) 입니다."
+    }
+}

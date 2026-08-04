@@ -1,0 +1,145 @@
+.settings-page {
+  background-color: var(--bg-color); /* 배경색을 변수로! */
+  color: var(--text-color);         /* 글자색을 변수로! */
+}
+
+.settings-section { 
+  background-color: var(--card-bg); /* 흰색 대신 카드의 배경색 변수 사용 */
+  color: var(--text-color);         /* 글자색 변수 사용 */
+    transition: background-color 0.3s;
+}
+
+.input-group { 
+    margin-bottom: 15px; 
+}
+
+.input-group label { 
+    display: block; 
+    margin-bottom: 5px; 
+    font-weight: 600; 
+    color: #475569; 
+}
+
+.input-group input, .input-group select { 
+    width: 100%; 
+    padding: 10px; 
+    border: 1px solid #cbd5e1; 
+    border-radius: 6px; 
+}
+
+.toggle-group { 
+    display: flex; 
+    justify-content: space-between; 
+    padding: 10px 0; 
+    border-bottom: 1px solid #f1f5f9; 
+}
+
+.save-btn { 
+    width: 100%; 
+    padding: 15px; 
+    background: #4f7df3; 
+    color: white; 
+    border: none; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    font-weight: bold; 
+}
+
+/* 수정 버튼 스타일 */
+.edit-btn { 
+    background: #f1f5f9; 
+    border: none; 
+    padding: 5px 12px; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    color: #475569; 
+}
+
+.section-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 15px; 
+}
+
+/* 입력창이 비활성화되었을 때 스타일 */
+input:disabled, select:disabled { 
+    background: #f8fafc; 
+    cursor: not-allowed; 
+    border: 1px solid #e2e8f0; 
+}
+
+/* 버튼 그룹 */
+.button-group { 
+    display: flex; 
+    gap: 10px; 
+    margin-top: 20px; 
+}
+
+.save-btn { 
+    flex: 1; 
+    padding: 12px; 
+    background: #4f7df3; 
+    color: white; 
+    border: none; 
+    border-radius: 8px; 
+    cursor: pointer; 
+}
+
+.cancel-btn { 
+    flex: 1; 
+    padding: 12px; 
+    background: #e2e8f0; 
+    border: none; 
+    border-radius: 8px; 
+    cursor: pointer; 
+}
+
+/* 스위치 컨테이너 */
+.switch { 
+    position: relative; 
+    display: inline-block; 
+    width: 50px; 
+    height: 26px; 
+}
+
+.switch input { 
+    opacity: 0; 
+    width: 0; 
+    height: 0; 
+}
+
+/* 배경 바 */
+.slider {
+    position: absolute; 
+    cursor: pointer; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    bottom: 0;
+    background-color: #ccc; 
+    transition: .4s; 
+    border-radius: 34px;
+}
+
+/* 동그란 버튼 */
+.slider:before {
+    position: absolute; 
+    content: ""; 
+    height: 20px; 
+    width: 20px;
+    left: 3px; 
+    bottom: 3px; 
+    background-color: white;
+    transition: .4s; 
+    border-radius: 50%;
+}
+
+/* 체크 되었을 때 색상 */
+input:checked + .slider { 
+    background-color: #4f7df3; 
+}
+
+input:checked + .slider:before { 
+    transform: translateX(24px); 
+}

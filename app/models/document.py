@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -23,7 +23,7 @@ class Document(Base):
     subject: Mapped[str | None] = mapped_column(String(100))
     grade: Mapped[str | None] = mapped_column(String(50))
     source_type: Mapped[str] = mapped_column(String(30), default=SourceType.TEXTBOOK.value, nullable=False)
-    file_path: Mapped[str | None] = mapped_column(String(500))
+    file_path: Mapped[str | None] = mapped_column(String(500), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
@@ -31,6 +31,7 @@ class Document(Base):
 
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
+    __table_args__ = (UniqueConstraint("document_id", "chunk_index", name="uq_document_chunk"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), nullable=False)

@@ -1,23 +1,34 @@
-from sqlalchemy import Column, Integer, String
+from datetime import datetime
+from enum import Enum
 
-from app.database.database import Base
+from sqlalchemy import DateTime, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.database.base import Base
 
 
-# 사용자 정보를 저장하는 테이블
+class UserRole(str, Enum):
+    STUDENT = "student"
+    TEACHER = "teacher"
+    ADMIN = "admin"
+
+
 class User(Base):
     __tablename__ = "users"
 
-    # 사용자 고유 번호
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    grade: Mapped[str | None] = mapped_column(String(50))
+    role: Mapped[str] = mapped_column(String(30), default=UserRole.STUDENT.value, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
-    # 로그인에 사용할 이메일
-    email = Column(String(255), unique=True, nullable=False, index=True)
-
-    # 암호화된 비밀번호
-    password = Column(String(255), nullable=False)
-
-    # 사용자 이름
-    name = Column(String(50), nullable=False)
-
-    # 학년
-    grade = Column(Integer, nullable=False)
+    owned_rooms = relationship("LearningRoom", back_populates="owner")
+    room_memberships = relationship("RoomMember", back_populates="user", cascade="all, delete-orphan")
+    chat_sessions = relationship("ChatSession", back_populates="user")
+    learning_records = relationship("LearningRecord", back_populates="user")
