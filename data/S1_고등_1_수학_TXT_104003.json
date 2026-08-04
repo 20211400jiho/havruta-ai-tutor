@@ -1,0 +1,41 @@
+{
+    "raw_data_info" : {
+        "raw_data_name" : "160ab4e7-09bc-4556-ba3b-44440d520df8",
+        "date" : "2024-08-27",
+        "publisher" : "2차 저작",
+        "publication_year" : "2019-03-01",
+        "school" : "고등학교",
+        "grade" : "1학년",
+        "semester" : "공통",
+        "subject" : "수학",
+        "revision_year" : "2015"
+    },
+    "source_data_info" : {
+        "source_data_name" : "S1_고등_1_수학_TXT_104003",
+        "2009_achievement_standard" : [
+            " "
+        ],
+        "2015_achievement_standard" : [
+            "[10수학02-04] 두 직선의 평행 조건과 수직 조건을 이해한다."
+        ],
+        "2022_achievement_standard" : [
+            "[10공수2-01-02] 두 직선의 평행 조건과 수직 조건을 탐구하고 이해한다."
+        ]
+    },
+    "learning_data_info" : {
+        "learning_data_name" : "S1_고등_1_수학_TXT_104003",
+        "class_num" : 6,
+        "class_name" : "텍스트",
+        "bounding_box" : [
+            [
+                7.28,
+                15.58,
+                378.9,
+                82.5
+            ]
+        ],
+        "text_description" : "$4x+y-3=0$은 $y=-4x+3$이므로 기울기가 -4이다.",
+        "text_qa" : "4x+y-3=0은 y=-4x+3이므로 기울기는?",
+        "text_an" : "기울기가 -4이다."
+    }
+}

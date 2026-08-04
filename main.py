@@ -1,28 +1,58 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# 데이터베이스와 모델 가져오기
-from app.database.database import Base, engine
-from app.models.user import User
-from app.models.room import Room
-
-# 기능별 Router 가져오기
-from app.routers.root import router as root_router
+from app.database.config import settings
+from app.database.connection import SessionLocal, create_tables
 from app.routers.auth import router as auth_router
+from app.routers.chat import router as websocket_router
+from app.routers.dashboard import router as dashboard_router
+from app.routers.rag import router as rag_router
+from app.routers.notes import router as notes_router
+from app.routers.quizzes import router as quizzes_router
 from app.routers.room import router as room_router
-from app.routers.chat import router as chat_router
+from app.routers.root import router as root_router
+from app.routers.sessions import router as sessions_router
+from app.services.rag_service import index_local_documents
+from app.services.connection_manager import manager
 
-# 데이터베이스에 정의된 테이블 생성
-Base.metadata.create_all(bind=engine)
 
-# FastAPI 서버 설정
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    create_tables()
+    db = SessionLocal()
+    try:
+        index_local_documents(db)
+    finally:
+        db.close()
+    await manager.start()
+    try:
+        yield
+    finally:
+        await manager.stop()
+
+
 app = FastAPI(
-    title="하브루타 AI 튜터 API",
-    description="중·고등학생을 위한 AI 하브루타 학습 시스템 백엔드 API",
-    version="1.0.0"
+    title=settings.app_name,
+    description="중·고등학생을 위한 AI 하브루타 학습 시스템 API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Router 등록
 app.include_router(root_router)
 app.include_router(auth_router)
 app.include_router(room_router)
-app.include_router(chat_router)
+app.include_router(sessions_router)
+app.include_router(rag_router)
+app.include_router(dashboard_router)
+app.include_router(notes_router)
+app.include_router(quizzes_router)
+app.include_router(websocket_router)

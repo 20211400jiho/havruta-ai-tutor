@@ -1,31 +1,30 @@
-from pydantic import BaseModel, EmailStr
+from typing import Literal
+
+from pydantic import BaseModel, EmailStr, Field
 
 
-# -------------------------------
-# 회원가입 요청 데이터
-# -------------------------------
 class SignupRequest(BaseModel):
-
-    # 이메일
     email: EmailStr
-
-    # 비밀번호
-    password: str
-
-    # 이름
-    name: str
-
-    # 학년
-    grade: int
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=1, max_length=100)
+    grade: str | None = Field(default=None, max_length=50)
+    role: Literal["student", "teacher"] = "student"
 
 
-# -------------------------------
-# 로그인 요청 데이터
-# -------------------------------
 class LoginRequest(BaseModel):
-
-    # 이메일
     email: EmailStr
-
-    # 비밀번호
     password: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    name: str
+    grade: str | None
+    role: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
