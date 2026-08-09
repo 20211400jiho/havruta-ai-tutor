@@ -3,3 +3,5 @@ chromadb
 sentence-transformers
 fastapi
 uvicorn
+openai
+python-dotenv
