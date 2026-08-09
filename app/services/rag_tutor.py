@@ -153,10 +153,11 @@ def generate_tutor_answer(
     if not answer_text.strip().startswith("좋아"):
         answer_text = "좋아, 쉽게 말하면...\n\n" + answer_text
 
-    # 반환: contexts는 검색된 원본(디버깅용), used_contexts는 실제 사용된 컨텍스트
+    # 반환: contexts는 실제 답변에 사용된 문서(모드가 'rag'일 때만 채움),
+    # retrieved_contexts는 검색으로 얻은 모든 문서(디버깅용)
     return {
         "answer": answer_text,
         "mode": mode,
-        "contexts": retrieved_contexts,
-        "used_contexts": used_contexts,
+        "contexts": used_contexts if mode == "rag" else [],
+        "retrieved_contexts": retrieved_contexts,
     }

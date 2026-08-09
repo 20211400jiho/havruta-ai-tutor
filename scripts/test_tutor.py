@@ -23,21 +23,23 @@ def run_test(question, school_level, grade, subject, top_k=3):
     answer = result.get("answer", "")
     mode = result.get("mode", "")
     contexts = result.get("contexts", []) or []
+    retrieved = result.get("retrieved_contexts", []) or []
 
     print(f"mode: {mode}")
     print("answer:\n")
     print(answer)
     print()
-    print(f"contexts 개수: {len(contexts)}")
+    print(f"contexts 개수 (실제 사용된 문서): {len(contexts)}")
+    print(f"retrieved_contexts 개수 (검색된 문서): {len(retrieved)}")
 
-    if len(contexts) > 0:
+    if len(retrieved) > 0:
         # 검색에서 반환된 메타 정보를 확인하려면 동일 파라미터로 상세 검색 수행
         try:
             hits = search(question, top_k=top_k, school_level=school_level, grade=grade, subject=subject)
             if hits:
                 first = hits[0]
                 metadata = first.get("metadata", {})
-                print("첫 번째 context 메타:")
+                print("첫 번째 검색된 문서 메타:")
                 print(f"  file: {metadata.get('file', '')}")
                 print(f"  source_path: {metadata.get('source_path', '')}")
                 print(f"  distance: {first.get('distance')}")
