@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.database.base import Base
+from app.database.config import settings
 from app.database.connection import get_db
 from app.services.rag_service import index_local_documents
 from main import app
@@ -21,12 +22,18 @@ TestSession = sessionmaker(bind=TEST_ENGINE, autoflush=False, autocommit=False)
 
 @pytest.fixture(autouse=True)
 def database():
+    original_ai_provider = settings.ai_provider
+    original_rag_provider = settings.rag_provider
+    settings.ai_provider = "local"
+    settings.rag_provider = "lexical"
     Base.metadata.create_all(TEST_ENGINE)
     db = TestSession()
     index_local_documents(db)
     db.close()
     yield
     Base.metadata.drop_all(TEST_ENGINE)
+    settings.ai_provider = original_ai_provider
+    settings.rag_provider = original_rag_provider
 
 
 @pytest.fixture

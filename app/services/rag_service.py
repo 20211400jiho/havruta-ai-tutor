@@ -1,10 +1,14 @@
 import json
+import logging
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 
 from sqlalchemy.orm import Session
 
+from app.database.config import settings
 from app.models.document import Document, DocumentChunk
 
 
@@ -12,6 +16,8 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 TOKEN_PATTERN = re.compile(r"\(-?\d+(?:/\d+)?\s*,\s*-?\d+(?:/\d+)?\)|-?\d+(?:/\d+)?|[가-힣A-Za-z]+")
 STOPWORDS = {"그리고", "그러므로", "어떻게", "무엇", "인가요", "입니다", "있는", "대한", "직선", "문제"}
+logger = logging.getLogger(__name__)
+_chroma_lock = Lock()
 
 
 @dataclass
@@ -115,7 +121,7 @@ def tokenize(text: str) -> set[str]:
     }
 
 
-def search(db: Session, query: str, top_k: int = 3) -> list[SearchResult]:
+def _lexical_search(db: Session, query: str, top_k: int = 3) -> list[SearchResult]:
     query_tokens = tokenize(query)
     results: list[SearchResult] = []
     for chunk in db.query(DocumentChunk).all():
@@ -138,3 +144,74 @@ def search(db: Session, query: str, top_k: int = 3) -> list[SearchResult]:
         )
     results.sort(key=lambda result: result.score, reverse=True)
     return results[:top_k]
+
+
+@lru_cache(maxsize=1)
+def _chroma_resources():
+    try:
+        import chromadb
+        from huggingface_hub import snapshot_download
+        from sentence_transformers import SentenceTransformer
+    except ImportError as exc:
+        raise RuntimeError("Chroma RAG 패키지가 설치되지 않았습니다.") from exc
+
+    chroma_dir = Path(settings.chroma_dir).expanduser()
+    if not chroma_dir.is_absolute():
+        chroma_dir = BASE_DIR / chroma_dir
+    if not (chroma_dir / "chroma.sqlite3").is_file():
+        raise RuntimeError(f"ChromaDB를 찾을 수 없습니다: {chroma_dir}")
+
+    client = chromadb.PersistentClient(path=str(chroma_dir))
+    collection = client.get_collection(name=settings.chroma_collection)
+    model_source = settings.embedding_model
+    if settings.embedding_local_files_only and not Path(model_source).expanduser().exists():
+        model_source = snapshot_download(model_source, local_files_only=True)
+    model = SentenceTransformer(
+        model_source,
+        local_files_only=settings.embedding_local_files_only,
+    )
+    return collection, model
+
+
+def _chroma_search(query: str, top_k: int) -> list[SearchResult]:
+    collection, model = _chroma_resources()
+    with _chroma_lock:
+        query_embedding = model.encode([f"query: {query}"], convert_to_numpy=True)
+        response = collection.query(
+            query_embeddings=query_embedding.tolist(),
+            n_results=top_k,
+            where={"subject": "수학"},
+            include=["documents", "metadatas", "distances"],
+        )
+
+    ids = response.get("ids", [[]])[0]
+    documents = response.get("documents", [[]])[0]
+    metadatas = response.get("metadatas", [[]])[0]
+    distances = response.get("distances", [[]])[0]
+    results: list[SearchResult] = []
+    for source_id, content, metadata, distance in zip(ids, documents, metadatas, distances, strict=False):
+        distance_value = float(distance)
+        result_metadata = dict(metadata or {})
+        result_metadata["retriever"] = "chroma"
+        results.append(
+            SearchResult(
+                chunk_id=None,
+                source_id=str(source_id),
+                content=content or "",
+                score=round(max(0.0, min(1.0, 1.0 - distance_value)), 4),
+                metadata=result_metadata,
+            )
+        )
+    return results
+
+
+def search(db: Session, query: str, top_k: int = 3) -> list[SearchResult]:
+    provider = settings.rag_provider.strip().lower()
+    if provider in {"auto", "chroma"}:
+        try:
+            results = _chroma_search(query, top_k)
+            if results:
+                return results
+        except Exception as exc:
+            logger.warning("Chroma 검색에 실패해 MySQL 어휘 검색으로 대체합니다: %s", exc)
+    return _lexical_search(db, query, top_k)

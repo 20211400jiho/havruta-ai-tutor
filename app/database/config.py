@@ -19,8 +19,17 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 10080
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     ai_provider: str = "local"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-5.6-terra"
+    openai_reasoning_effort: str = "none"
+    openai_timeout_seconds: float = 45.0
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:3b"
+    rag_provider: str = "auto"
+    chroma_dir: str = "chroma_db"
+    chroma_collection: str = "havruta_math_all"
+    embedding_model: str = "intfloat/multilingual-e5-base"
+    embedding_local_files_only: bool = True
     redis_url: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
