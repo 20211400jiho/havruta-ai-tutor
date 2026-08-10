@@ -1,25 +1,20 @@
-# .env 파일의 환경변수를 불러오기 위한 라이브러리
-from dotenv import load_dotenv
-
-# OpenAI API를 사용하기 위한 라이브러리
 from openai import OpenAI
 
-# .env 파일 불러오기
-load_dotenv()
+from app.database.config import settings
 
-# OpenAI 클라이언트 생성
-client = OpenAI()
 
-try:
-    # GPT에게 테스트 메시지 보내기
+def main() -> None:
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY를 .env에 설정하세요.")
+    client = OpenAI(api_key=settings.openai_api_key)
     response = client.responses.create(
-        model="gpt-5-mini",
-        input="안녕하세요! 한 문장으로 자기소개해 주세요."
+        model=settings.openai_model,
+        reasoning={"effort": settings.openai_reasoning_effort},
+        input="안녕하세요! 한 문장으로 자기소개해 주세요.",
     )
-
     print("GPT 응답:")
     print(response.output_text)
 
-except Exception as e:
-    print("오류 발생!")
-    print(e)
+
+if __name__ == "__main__":
+    main()

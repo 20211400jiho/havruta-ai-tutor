@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import chromadb
@@ -5,17 +6,18 @@ from sentence_transformers import SentenceTransformer
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-CHROMA_DIR = BASE_DIR / "chroma_db"
+CHROMA_DIR = Path(os.getenv("CHROMA_DIR", BASE_DIR / "chroma_db"))
+COLLECTION_NAME = os.getenv("CHROMA_COLLECTION", "havruta_math_all")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-base")
 
 
 def get_embedding_model():
-    return SentenceTransformer("intfloat/multilingual-e5-base")
+    return SentenceTransformer(EMBEDDING_MODEL)
 
 
 def get_chroma_collection():
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    collection = client.get_or_create_collection(name="high1_math")
-    return collection
+    return client.get_collection(name=COLLECTION_NAME)
 
 
 def query_high1_math(question: str, top_k: int = 3):
@@ -29,6 +31,7 @@ def query_high1_math(question: str, top_k: int = 3):
     results = collection.query(
         query_embeddings=query_embedding.tolist(),
         n_results=top_k,
+        where={"subject": "수학"},
     )
 
     ids = results["ids"][0]

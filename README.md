@@ -18,7 +18,7 @@
 - 학습방 생성, 6자리 초대 코드 참여, 인원 제한
 - AI 학습 세션 시작, 메시지 저장, 답변 평가, 후속 질문
 - `AITraining`의 고1 수학 자료 10건 자동 DB 인덱싱
-- 가벼운 로컬 검색 기반 RAG와 선택적 Ollama 연동
+- ChromaDB 의미 검색과 OpenAI 기반 하브루타 답변 생성
 - 학습 세션 종료, 평균 점수와 학습 기록 집계
 - 학습 종료 시 정리노트 자동 생성
 - RAG 자료 기반 복습 퀴즈 생성과 채점
@@ -37,7 +37,8 @@ flowchart LR
     API --> Auth[Auth / Rooms]
     API --> Tutor[Havruta Tutor]
     API --> Content[Notes / Quizzes / Dashboard]
-    Tutor --> RAG[Local Math RAG]
+    Tutor --> RAG[Chroma / Lexical fallback]
+    Tutor --> OpenAI[OpenAI Responses API]
     Tutor -. optional .-> Ollama[Local Ollama]
     Auth --> DB[(MySQL)]
     Tutor --> DB
@@ -48,7 +49,7 @@ flowchart LR
     JSON[AITraining JSON 10 files] --> RAG
 ```
 
-현재 기본 `AI_PROVIDER=local`은 별도 모델 다운로드 없이 어휘 검색, 정답 핵심어 비교, 규칙 기반 피드백으로 작동합니다. `AI_PROVIDER=ollama`로 변경하면 RAG 근거를 포함한 프롬프트를 로컬 Ollama 모델에 전달합니다.
+`AI_PROVIDER=openai`는 ChromaDB 검색 근거를 OpenAI Responses API에 전달합니다. API 키가 없거나 호출에 실패하면 규칙 기반 답변으로 대체됩니다. `RAG_PROVIDER=chroma`는 로컬 ChromaDB를 사용하며, DB나 선택 패키지가 없으면 MySQL 어휘 검색으로 대체됩니다.
 
 ## 빠른 실행
 
@@ -111,7 +112,12 @@ npm run dev -- --host 127.0.0.1
 | `REDIS_URL` | Railway Redis URL | 다중 인스턴스 WebSocket 브로드캐스트 |
 | `JWT_SECRET_KEY` | 필수 | 운영 시 긴 무작위 문자열 사용 |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | 허용할 프런트 주소 |
-| `AI_PROVIDER` | `local` | `local` 또는 `ollama` |
+| `AI_PROVIDER` | `openai` | `openai`, `local` 또는 `ollama` |
+| `OPENAI_API_KEY` | 필수 | OpenAI API 키. Git에 커밋하지 않음 |
+| `OPENAI_MODEL` | `gpt-5.6-terra` | 튜터 응답 생성 모델 |
+| `RAG_PROVIDER` | `chroma` | `chroma`, `auto` 또는 `lexical` |
+| `CHROMA_DIR` | `chroma_db` | 로컬 ChromaDB 디렉터리 |
+| `CHROMA_COLLECTION` | `havruta_math_all` | 검색할 컬렉션 |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API |
 | `OLLAMA_MODEL` | `qwen2.5:3b` | 로컬 생성 모델 |
 
@@ -158,6 +164,16 @@ python -m src.query_math_chroma
 ```
 
 `intfloat/multilingual-e5-base` 모델은 최초 실행 시 별도 다운로드되므로 네트워크와 수백 MB 이상의 여유 공간이 필요할 수 있습니다.
+
+로컬 실행 시 프로젝트 루트의 `.env`에 새 API 키를 입력합니다.
+
+```dotenv
+AI_PROVIDER=openai
+OPENAI_API_KEY=새로_발급한_API_키
+RAG_PROVIDER=chroma
+```
+
+Railway에서는 백엔드 서비스의 `Variables`에 같은 변수들을 추가합니다. 로컬 `chroma_db/`는 Git에서 제외되므로 Railway에 별도 저장소를 구성하지 않으면 배포 서버는 자동으로 MySQL 어휘 검색을 사용합니다.
 
 ## 프로젝트 구조
 
