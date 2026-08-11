@@ -59,11 +59,11 @@ def create_session(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    ensure_room_access(db, payload.room_id, user.id)
+    room = ensure_room_access(db, payload.room_id, user.id)
     session = ChatSession(room_id=payload.room_id, user_id=user.id, topic=payload.topic, state="questioning")
     db.add(session)
     db.flush()
-    question, contexts = initial_question(db, payload.topic)
+    question, contexts = initial_question(db, payload.topic, room.subject or "일반")
     ai_message = Message(session_id=session.id, sender_type="ai", content=question)
     db.add(ai_message)
     db.flush()
@@ -117,7 +117,13 @@ def send_message(
     user_message = Message(session_id=session.id, sender_type="user", content=payload.content.strip())
     db.add(user_message)
     db.flush()
-    reply, feedback_data, contexts = tutor_reply(db, session.topic or "수학", payload.content)
+    subject = session.room.subject if session.room and session.room.subject else "일반"
+    reply, feedback_data, contexts = tutor_reply(
+        db,
+        session.topic or subject,
+        payload.content,
+        subject,
+    )
     feedback = AIFeedback(session_id=session.id, message_id=user_message.id, **feedback_data)
     ai_message = Message(session_id=session.id, sender_type="ai", content=reply)
     db.add_all([feedback, ai_message])

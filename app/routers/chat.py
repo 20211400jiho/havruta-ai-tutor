@@ -68,7 +68,9 @@ async def websocket_chat(
         auth_message = await asyncio.wait_for(websocket.receive_text(), timeout=10)
         auth_payload = json.loads(auth_message)
         token = str(auth_payload.get("token", "")) if auth_payload.get("type") == "authenticate" else ""
-    except (TimeoutError, json.JSONDecodeError, WebSocketDisconnect):
+    except WebSocketDisconnect:
+        return
+    except (TimeoutError, json.JSONDecodeError):
         await websocket.close(code=4401, reason="인증 메시지가 필요합니다.")
         return
 

@@ -14,11 +14,13 @@ export default function StudyView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+  const selectedRoom = rooms.find((room) => String(room.id) === roomId);
 
   useEffect(() => {
     api("/rooms").then((result) => {
-      setRooms(result.rooms);
-      if (result.rooms.length) setRoomId(String(result.rooms[0].id));
+      const loadedRooms = Array.isArray(result.rooms) ? result.rooms : [];
+      setRooms(loadedRooms);
+      if (loadedRooms.length) setRoomId(String(loadedRooms[0].id));
     }).catch((requestError) => setError(requestError.message));
   }, []);
   useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
@@ -28,6 +30,9 @@ export default function StudyView() {
     setLoading(true); setError(""); setFeedback(null);
     try {
       const result = await api("/sessions", { method: "POST", body: JSON.stringify({ room_id: Number(roomId), topic }) });
+      if (!result?.session?.id || !Array.isArray(result.session.messages)) {
+        throw new Error("학습 세션 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
+      }
       setSessionId(result.session.id);
       setMessages(result.session.messages);
     } catch (requestError) { setError(requestError.message); }
@@ -42,6 +47,9 @@ export default function StudyView() {
     setInput(""); setLoading(true); setError("");
     try {
       const result = await api(`/sessions/${sessionId}/messages`, { method: "POST", body: JSON.stringify({ content }) });
+      if (!result?.message || typeof result.message.content !== "string") {
+        throw new Error("AI 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
+      }
       setMessages((current) => [...current, result.message]);
       setFeedback(result.feedback);
     } catch (requestError) { setError(requestError.message); }
@@ -61,7 +69,8 @@ export default function StudyView() {
     <main className="study-start-card">
       <span className="study-kicker">AI 하브루타 튜터</span>
       <h2>설명하고, 질문받고, 다시 생각해보세요.</h2>
-      <label>학습방<select value={roomId} onChange={(e) => setRoomId(e.target.value)}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title}</option>)}</select></label>
+      <label>학습방<select value={roomId} onChange={(e) => setRoomId(e.target.value)}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title} · {room.subject || "일반"}</option>)}</select></label>
+      <label>교과목<input value={selectedRoom?.subject || "학습방을 선택하세요"} readOnly /></label>
       <label>오늘의 주제<input value={topic} onChange={(e) => setTopic(e.target.value)} /></label>
       {error && <p className="study-error">{error}</p>}
       <button onClick={startSession} disabled={loading}>{loading ? "준비 중..." : "학습 시작"}</button>
@@ -75,7 +84,7 @@ export default function StudyView() {
         {messages.map((message) => (
           <div key={message.id} className={`message-row ${message.sender_type}`}>
             {message.sender_type === "ai" && <img src={aiImage} alt="AI" className="ai-avatar" />}
-            <div className="bubble">{message.content.split("\n").map((line, index) => <p key={index}>{line || <br />}</p>)}</div>
+            <div className="bubble">{(typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다.").split("\n").map((line, index) => <p key={index}>{line || <br />}</p>)}</div>
           </div>
         ))}
         {loading && <div className="message-row ai"><img src={aiImage} alt="AI" className="ai-avatar" /><div className="bubble">생각을 정리하고 있어요...</div></div>}
@@ -83,7 +92,7 @@ export default function StudyView() {
       </div>
       {feedback && <div className="feedback-strip"><strong>최근 평가 {feedback.score}점</strong><span>{feedback.strengths}</span></div>}
       {error && <p className="study-error">{error}</p>}
-      <form className="chat-input-bar" onSubmit={send}><input value={input} onChange={(e) => setInput(e.target.value)} placeholder="내 생각과 풀이 과정을 입력하세요..." /><button className="send-btn" disabled={loading}>➤</button></form>
+      <form className="chat-input-bar" onSubmit={send}><input value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 풀이 과정을 입력하세요..." /><button className="send-btn" disabled={loading || !input.trim()} aria-label="전송">➤</button></form>
     </div>
   );
 }
