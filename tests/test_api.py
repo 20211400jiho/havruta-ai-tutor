@@ -95,6 +95,44 @@ def test_rag_search(client, auth_headers):
     assert "평행" in response.json()["results"][0]["content"]
 
 
+def test_science_session_returns_renderable_message(client, auth_headers):
+    room_response = client.post(
+        "/rooms",
+        headers=auth_headers,
+        json={
+            "title": "고1 과학방",
+            "subject": "과학",
+            "grade": "고등학교 1학년",
+            "max_members": 4,
+        },
+    )
+    room_id = room_response.json()["room"]["id"]
+    session_response = client.post(
+        "/sessions",
+        headers=auth_headers,
+        json={"room_id": room_id, "topic": "광합성"},
+    )
+    session_id = session_response.json()["session"]["id"]
+
+    answer_response = client.post(
+        f"/sessions/{session_id}/messages",
+        headers=auth_headers,
+        json={"content": "식물은 빛을 이용해 양분을 만듭니다."},
+    )
+
+    assert answer_response.status_code == 200
+    assert isinstance(answer_response.json()["message"]["content"], str)
+    assert answer_response.json()["message"]["content"]
+
+    rag_response = client.post(
+        "/rag/search",
+        headers=auth_headers,
+        json={"query": "광합성", "subject": "과학", "top_k": 3},
+    )
+    assert rag_response.status_code == 200
+    assert rag_response.json()["results"] == []
+
+
 def test_generate_and_submit_quiz(client, auth_headers):
     created = client.post(
         "/quizzes",

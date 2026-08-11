@@ -121,10 +121,18 @@ def tokenize(text: str) -> set[str]:
     }
 
 
-def _lexical_search(db: Session, query: str, top_k: int = 3) -> list[SearchResult]:
+def _lexical_search(
+    db: Session,
+    query: str,
+    top_k: int = 3,
+    subject: str | None = None,
+) -> list[SearchResult]:
     query_tokens = tokenize(query)
     results: list[SearchResult] = []
-    for chunk in db.query(DocumentChunk).all():
+    chunks = db.query(DocumentChunk).join(Document)
+    if subject:
+        chunks = chunks.filter(Document.subject == subject)
+    for chunk in chunks.all():
         document_tokens = tokenize(chunk.content)
         overlap = query_tokens & document_tokens
         exact_bonus = sum(2 for token in query_tokens if token in chunk.content.lower())
@@ -132,7 +140,8 @@ def _lexical_search(db: Session, query: str, top_k: int = 3) -> list[SearchResul
         if raw_score == 0:
             continue
         score = min(1.0, raw_score / max(6, len(query_tokens) * 4))
-        metadata = chunk.metadata_json or {}
+        metadata = dict(chunk.metadata_json or {})
+        metadata.setdefault("subject", chunk.document.subject)
         results.append(
             SearchResult(
                 chunk_id=chunk.id,
@@ -173,15 +182,19 @@ def _chroma_resources():
     return collection, model
 
 
-def _chroma_search(query: str, top_k: int) -> list[SearchResult]:
+def _chroma_search(query: str, top_k: int, subject: str | None = None) -> list[SearchResult]:
     collection, model = _chroma_resources()
     with _chroma_lock:
         query_embedding = model.encode([f"query: {query}"], convert_to_numpy=True)
+        query_options = {
+            "query_embeddings": query_embedding.tolist(),
+            "n_results": top_k,
+            "include": ["documents", "metadatas", "distances"],
+        }
+        if subject:
+            query_options["where"] = {"subject": subject}
         response = collection.query(
-            query_embeddings=query_embedding.tolist(),
-            n_results=top_k,
-            where={"subject": "수학"},
-            include=["documents", "metadatas", "distances"],
+            **query_options,
         )
 
     ids = response.get("ids", [[]])[0]
@@ -205,13 +218,19 @@ def _chroma_search(query: str, top_k: int) -> list[SearchResult]:
     return results
 
 
-def search(db: Session, query: str, top_k: int = 3) -> list[SearchResult]:
+def search(
+    db: Session,
+    query: str,
+    top_k: int = 3,
+    subject: str | None = None,
+) -> list[SearchResult]:
+    normalized_subject = subject.strip() if subject else None
     provider = settings.rag_provider.strip().lower()
     if provider in {"auto", "chroma"}:
         try:
-            results = _chroma_search(query, top_k)
+            results = _chroma_search(query, top_k, normalized_subject)
             if results:
                 return results
         except Exception as exc:
             logger.warning("Chroma 검색에 실패해 MySQL 어휘 검색으로 대체합니다: %s", exc)
-    return _lexical_search(db, query, top_k)
+    return _lexical_search(db, query, top_k, normalized_subject)

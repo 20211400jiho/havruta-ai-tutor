@@ -25,7 +25,7 @@ def search_documents(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    results = search(db, payload.query, payload.top_k)
+    results = search(db, payload.query, payload.top_k, payload.subject)
     return {
         "query": payload.query,
         "results": [

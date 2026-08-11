@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState } from "react";
 import AuthView from "./AuthView.jsx";
 import Sidebar from "./Sidebar.jsx";
 import Home from "./Home.jsx";
@@ -11,6 +11,34 @@ import MyPageView from "./MyPageView.jsx";
 import SettingsView from "./SettingsView.jsx";
 import { api, getToken, setToken } from "./api.js";
 import "./Home.css";
+
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("화면 렌더링 오류", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="app-error-page">
+          <h1>화면을 표시하지 못했습니다.</h1>
+          <p>입력한 내용은 유지되지 않을 수 있습니다. 화면을 다시 불러와 주세요.</p>
+          <button type="button" onClick={() => window.location.reload()}>다시 불러오기</button>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   const [activeMenu, setActiveMenu] = useState(0);
@@ -61,4 +89,6 @@ function App() {
   );
 }
 
-export default App;
+export default function RootApp() {
+  return <AppErrorBoundary><App /></AppErrorBoundary>;
+}

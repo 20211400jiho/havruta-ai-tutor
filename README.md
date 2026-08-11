@@ -16,6 +16,7 @@
 
 - 이메일 회원가입과 로그인, Argon2 비밀번호 해싱, JWT 인증
 - 학습방 생성, 6자리 초대 코드 참여, 인원 제한
+- 국어·영어·수학·사회·사회문화·과학·도덕·기술가정·정보 과목별 학습방
 - AI 학습 세션 시작, 메시지 저장, 답변 평가, 후속 질문
 - `AITraining`의 고1 수학 자료 10건 자동 DB 인덱싱
 - ChromaDB 의미 검색과 OpenAI 기반 하브루타 답변 생성
@@ -49,7 +50,7 @@ flowchart LR
     JSON[AITraining JSON 10 files] --> RAG
 ```
 
-`AI_PROVIDER=openai`는 ChromaDB 검색 근거를 OpenAI Responses API에 전달합니다. API 키가 없거나 호출에 실패하면 규칙 기반 답변으로 대체됩니다. `RAG_PROVIDER=chroma`는 로컬 ChromaDB를 사용하며, DB나 선택 패키지가 없으면 MySQL 어휘 검색으로 대체됩니다.
+`AI_PROVIDER=openai`는 선택한 학습방 과목의 ChromaDB 검색 근거를 OpenAI Responses API에 전달합니다. API 키가 없거나 호출에 실패하면 규칙 기반 답변으로 대체됩니다. `RAG_PROVIDER=chroma`는 로컬 ChromaDB를 사용하며, DB나 선택 패키지가 없으면 MySQL 어휘 검색으로 대체됩니다. 검색 자료가 없는 과목은 OpenAI의 기초 교과 지식으로 하브루타 질문을 생성합니다.
 
 ## 빠른 실행
 

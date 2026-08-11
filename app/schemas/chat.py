@@ -13,3 +13,4 @@ class MessageCreateRequest(BaseModel):
 class RagSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=500)
     top_k: int = Field(default=3, ge=1, le=10)
+    subject: str | None = Field(default=None, min_length=1, max_length=100)
