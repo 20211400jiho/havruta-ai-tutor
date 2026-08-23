@@ -9,6 +9,7 @@
       "/scripts/**",
       "/main.py",
       "/requirements.txt",
+      "/requirements-ai.txt",
       "/Dockerfile",
       "/railway.json"
     ]
@@ -16,7 +17,7 @@
   "deploy": {
     "preDeployCommand": "python -m scripts.migrate_schema",
     "healthcheckPath": "/",
-    "healthcheckTimeout": 180,
+    "healthcheckTimeout": 600,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

@@ -154,7 +154,31 @@ Backend와 Frontend가 GitHub `main` 브랜치에 연결되어 있으면 해당 
 
 운영에서는 직접 `main`에 푸시하기보다 기능 브랜치와 Pull Request, 테스트 통과 후 병합하는 흐름을 권장한다.
 
-## 9. 운영 체크리스트
+## 9. 전 과목 Chroma RAG 배포
+
+Backend에 5GB 이상 영속 볼륨을 만들고 `/data`에 마운트한다. 로컬 인덱스는 Git에 올리지 않고 Railway CLI로 볼륨에 직접 전송한다.
+
+```bash
+npx -y @railway/cli login
+npx -y @railway/cli link -p 6bd8e75c-a489-4402-a56e-f9ce71c649ea -e production -s Backend
+npx -y @railway/cli volume files --volume backend-volume upload chroma_db /chroma_db --concurrency 8
+```
+
+업로드 완료 후 Backend 변수에 다음 값을 넣는다.
+
+```dotenv
+RAG_PROVIDER=chroma
+RAG_CURRICULUM_YEAR=2022
+CHROMA_DIR=/data/chroma_db
+CHROMA_COLLECTION=havruta_math_all
+CHROMA_REQUIRED=true
+EMBEDDING_MODEL=intfloat/multilingual-e5-base
+EMBEDDING_LOCAL_FILES_ONLY=true
+```
+
+Docker 이미지는 Chroma와 동일한 임베딩 모델을 포함한다. 시작 시 `scripts.verify_chroma`가 30만 건 이상과 9개 과목을 확인하며, 검증 실패 시 잘못된 폴백 서비스가 공개되지 않도록 Backend 시작을 중단한다. Railway 볼륨은 pre-deploy 단계에 마운트되지 않으므로 이 검사는 컨테이너 시작 명령에서 실행한다.
+
+## 10. 운영 체크리스트
 
 - Railway 변수에 실제 비밀값을 저장하고 `.env`를 커밋하지 않는다.
 - Backend와 Frontend에 HTTPS 공개 도메인을 사용한다.
