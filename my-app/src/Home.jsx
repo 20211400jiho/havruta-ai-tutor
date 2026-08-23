@@ -8,9 +8,9 @@ export default function Home({ setActiveMenu, user }) {
   const [dashboard, setDashboard] = useState(null);
   useEffect(() => { api("/dashboard/me").then(setDashboard).catch(() => {}); }, []);
   const summary = dashboard?.summary || { completed_sessions: 0, total_messages: 0, average_score: null };
-  const todayStatus = {
-    studyTime: { title: "완료한 학습", value: `${summary.completed_sessions}회`, sub: "누적 세션", progress: Math.min(100, summary.completed_sessions * 10) },
-    achievement: { title: "학습 성취도", value: `${summary.average_score ?? 0}%`, sub: "AI 평가 평균", progress: summary.average_score ?? 0 },
+  const learningStatus = {
+    completed: { title: "완료한 학습", value: `${summary.completed_sessions}회`, sub: "누적 세션" },
+    achievement: { title: "응답 평가", value: summary.average_score == null ? "-" : `${summary.average_score}점`, sub: "누적 평균", progress: summary.average_score ?? 0 },
     quizzes: { title: "대화 메시지", value: `${summary.total_messages}개`, sub: "누적" },
     notes: { title: "학습 기록", value: `${dashboard?.recent_records?.length ?? 0}개`, sub: "최근" }
   };
@@ -35,37 +35,32 @@ export default function Home({ setActiveMenu, user }) {
         </div>
       </div>
 
-      {/* 2. 오늘의 학습 현황 섹션 */}
+      {/* 2. 누적 학습 현황 섹션 */}
       <section className="status-section" style={{ marginTop: '30px' }}>
-        <h2 className="section-title">오늘의 학습 현황</h2>
+        <h2 className="section-title">누적 학습 현황</h2>
         <div className="status-grid">
           
           {/* 카드 1: 학습 시간 */}
           <div className="status-card-custom">
             <div className="card-info">
-              <span className="card-label">{todayStatus.studyTime.title}</span>
-              <h3 className="card-value">{todayStatus.studyTime.value}</h3>
-              <span className="card-sub">{todayStatus.studyTime.sub}</span>
+              <span className="card-label">{learningStatus.completed.title}</span>
+              <h3 className="card-value">{learningStatus.completed.value}</h3>
+              <span className="card-sub">{learningStatus.completed.sub}</span>
             </div>
-            <div className="card-visual">
-              <svg width="70" height="70" viewBox="0 0 36 36" className="circular-chart blue-arc">
-                <path className="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                <path className="circle" strokeDasharray={`${todayStatus.studyTime.progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              </svg>
-            </div>
+            <div className="card-visual align-bottom"><div className="icon-box blue-box">✓</div></div>
           </div>
 
           {/* 카드 2: 학습 성취도 */}
           <div className="status-card-custom">
             <div className="card-info">
-              <span className="card-label">{todayStatus.achievement.title}</span>
-              <h3 className="card-value">{todayStatus.achievement.value}</h3>
-              <span className="card-sub">{todayStatus.achievement.sub}</span>
+              <span className="card-label">{learningStatus.achievement.title}</span>
+              <h3 className="card-value">{learningStatus.achievement.value}</h3>
+              <span className="card-sub">{learningStatus.achievement.sub}</span>
             </div>
             <div className="card-visual">
               <svg width="70" height="70" viewBox="0 0 36 36" className="circular-chart green-arc">
                 <path className="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                <path className="circle" strokeDasharray={`${todayStatus.achievement.progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path className="circle" strokeDasharray={`${learningStatus.achievement.progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
               </svg>
             </div>
           </div>
@@ -73,9 +68,9 @@ export default function Home({ setActiveMenu, user }) {
           {/* 카드 3: 완료한 퀴즈 */}
           <div className="status-card-custom">
             <div className="card-info">
-              <span className="card-label">{todayStatus.quizzes.title}</span>
-              <h3 className="card-value">{todayStatus.quizzes.value}</h3>
-              <span className="card-sub">{todayStatus.quizzes.sub}</span>
+              <span className="card-label">{learningStatus.quizzes.title}</span>
+              <h3 className="card-value">{learningStatus.quizzes.value}</h3>
+              <span className="card-sub">{learningStatus.quizzes.sub}</span>
             </div>
             <div className="card-visual align-bottom">
               <div className="icon-box orange-box">
@@ -87,9 +82,9 @@ export default function Home({ setActiveMenu, user }) {
           {/* 카드 4: 생성한 노트 */}
           <div className="status-card-custom">
             <div className="card-info">
-              <span className="card-label">{todayStatus.notes.title}</span>
-              <h3 className="card-value">{todayStatus.notes.value}</h3>
-              <span className="card-sub">{todayStatus.notes.sub}</span>
+              <span className="card-label">{learningStatus.notes.title}</span>
+              <h3 className="card-value">{learningStatus.notes.value}</h3>
+              <span className="card-sub">{learningStatus.notes.sub}</span>
             </div>
             <div className="card-visual align-bottom">
               <div className="icon-box purple-box">
@@ -124,7 +119,7 @@ export default function Home({ setActiveMenu, user }) {
         </div>
       </section>
 
-      {/* 4. 하단 기록 섹션 (최근 기록 및 주간 그래프) */}
+      {/* 4. 하단 기록 섹션 */}
       <div className="bottom-section" style={{ marginTop: '40px' }}>
         <div className="history">
           <h3>최근 학습 기록</h3>
@@ -132,7 +127,7 @@ export default function Home({ setActiveMenu, user }) {
         </div>
 
         <div className="weekly">
-          <h3>주간 학습 기록</h3>
+          <h3>전체 학습 요약</h3>
           <div className="graph-box">완료 세션 {summary.completed_sessions}회 · 총 메시지 {summary.total_messages}개</div>
         </div>
       </div>

@@ -6,7 +6,7 @@ from app.dependencies import get_current_user
 from app.models.study_content import Quiz, QuizAttempt
 from app.models.user import User
 from app.schemas.study_content import QuizGenerateRequest, QuizSubmitRequest
-from app.services.content_service import generate_quiz
+from app.services.content_service import QuizSourceNotFoundError, generate_quiz
 
 
 router = APIRouter(prefix="/quizzes", tags=["복습 퀴즈"])
@@ -36,9 +36,10 @@ def create_quiz(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    quiz = generate_quiz(db, user.id, payload.topic, payload.question_count)
-    if not quiz.questions:
-        raise HTTPException(status_code=422, detail="해당 주제에서 퀴즈를 만들 자료가 부족합니다.")
+    try:
+        quiz = generate_quiz(db, user.id, payload.topic, payload.question_count, payload.subject)
+    except QuizSourceNotFoundError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"quiz": quiz_summary(quiz)}
 
 

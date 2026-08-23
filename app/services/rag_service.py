@@ -18,6 +18,15 @@ TOKEN_PATTERN = re.compile(r"\(-?\d+(?:/\d+)?\s*,\s*-?\d+(?:/\d+)?\)|-?\d+(?:/\d
 STOPWORDS = {"그리고", "그러므로", "어떻게", "무엇", "인가요", "입니다", "있는", "대한", "직선", "문제"}
 logger = logging.getLogger(__name__)
 _chroma_lock = Lock()
+STRUCTURED_CONTENT_FIELDS = {
+    "과목": "subject",
+    "학년": "grade",
+    "설명": "description",
+    "질문": "question",
+    "정답": "answer",
+    "성취기준2022": "achievement_standard_2022",
+    "2022 성취기준": "achievement_standard_2022",
+}
 
 
 @dataclass
@@ -37,7 +46,7 @@ def _list_value(source: dict, *keys: str) -> str:
     return ""
 
 
-def load_math_rows() -> list[dict]:
+def load_local_rows() -> list[dict]:
     rows: list[dict] = []
     for path in sorted(DATA_DIR.glob("*.json")):
         with path.open(encoding="utf-8") as file:
@@ -71,6 +80,9 @@ def load_math_rows() -> list[dict]:
                 "description": description,
                 "question": question,
                 "answer": answer,
+                "curriculum_year": str(raw.get("revision_year") or raw.get("curriculum_year") or ""),
+                "achievement_2015": achievement_2015,
+                "achievement_2022": achievement_2022,
                 "content": content,
             }
         )
@@ -79,7 +91,7 @@ def load_math_rows() -> list[dict]:
 
 def index_local_documents(db: Session) -> int:
     indexed = 0
-    for row in load_math_rows():
+    for row in load_local_rows():
         document = db.query(Document).filter(Document.file_path == row["file"]).first()
         if document is None:
             document = Document(
@@ -91,6 +103,10 @@ def index_local_documents(db: Session) -> int:
             )
             db.add(document)
             db.flush()
+        else:
+            document.title = row["id"]
+            document.subject = row["subject"]
+            document.grade = row["grade"]
         chunk = (
             db.query(DocumentChunk)
             .filter(DocumentChunk.document_id == document.id, DocumentChunk.chunk_index == 0)
@@ -102,9 +118,20 @@ def index_local_documents(db: Session) -> int:
             "question": row["question"],
             "answer": row["answer"],
             "description": row["description"],
+            "subject": row["subject"],
+            "grade": row["grade"],
+            "curriculum_year": row["curriculum_year"],
+            "achievement_standard_2022": row["achievement_2022"],
         }
         if chunk is None:
-            db.add(DocumentChunk(document_id=document.id, chunk_index=0, content=row["content"], metadata_json=metadata))
+            db.add(
+                DocumentChunk(
+                    document_id=document.id,
+                    chunk_index=0,
+                    content=row["content"],
+                    metadata_json=metadata,
+                )
+            )
             indexed += 1
         else:
             chunk.content = row["content"]
@@ -126,6 +153,7 @@ def _lexical_search(
     query: str,
     top_k: int = 3,
     subject: str | None = None,
+    curriculum_year: str | None = None,
 ) -> list[SearchResult]:
     query_tokens = tokenize(query)
     results: list[SearchResult] = []
@@ -133,6 +161,10 @@ def _lexical_search(
     if subject:
         chunks = chunks.filter(Document.subject == subject)
     for chunk in chunks.all():
+        metadata = dict(chunk.metadata_json or {})
+        metadata.setdefault("subject", chunk.document.subject)
+        if not _is_curriculum_aligned(metadata, curriculum_year):
+            continue
         document_tokens = tokenize(chunk.content)
         overlap = query_tokens & document_tokens
         exact_bonus = sum(2 for token in query_tokens if token in chunk.content.lower())
@@ -140,8 +172,8 @@ def _lexical_search(
         if raw_score == 0:
             continue
         score = min(1.0, raw_score / max(6, len(query_tokens) * 4))
-        metadata = dict(chunk.metadata_json or {})
-        metadata.setdefault("subject", chunk.document.subject)
+        metadata["rag_curriculum_year"] = curriculum_year
+        metadata["curriculum_alignment"] = _curriculum_alignment(metadata, curriculum_year)
         results.append(
             SearchResult(
                 chunk_id=chunk.id,
@@ -156,11 +188,9 @@ def _lexical_search(
 
 
 @lru_cache(maxsize=1)
-def _chroma_resources():
+def _chroma_collection():
     try:
         import chromadb
-        from huggingface_hub import snapshot_download
-        from sentence_transformers import SentenceTransformer
     except ImportError as exc:
         raise RuntimeError("Chroma RAG 패키지가 설치되지 않았습니다.") from exc
 
@@ -171,51 +201,200 @@ def _chroma_resources():
         raise RuntimeError(f"ChromaDB를 찾을 수 없습니다: {chroma_dir}")
 
     client = chromadb.PersistentClient(path=str(chroma_dir))
-    collection = client.get_collection(name=settings.chroma_collection)
+    return client.get_collection(name=settings.chroma_collection)
+
+
+@lru_cache(maxsize=1)
+def _embedding_model():
+    try:
+        from huggingface_hub import snapshot_download
+        from sentence_transformers import SentenceTransformer
+    except ImportError as exc:
+        raise RuntimeError("임베딩 패키지가 설치되지 않았습니다.") from exc
+
     model_source = settings.embedding_model
     if settings.embedding_local_files_only and not Path(model_source).expanduser().exists():
         model_source = snapshot_download(model_source, local_files_only=True)
-    model = SentenceTransformer(
+    return SentenceTransformer(
         model_source,
         local_files_only=settings.embedding_local_files_only,
     )
-    return collection, model
 
 
-def _chroma_search(query: str, top_k: int, subject: str | None = None) -> list[SearchResult]:
-    collection, model = _chroma_resources()
+def _metadata_from_content(metadata: dict | None, content: str) -> dict:
+    """보관된 Chroma 문서 본문에서 빠진 구조화 필드를 복구한다."""
+    result = dict(metadata or {})
+    for line in content.splitlines():
+        label, separator, value = line.partition(":")
+        field = STRUCTURED_CONTENT_FIELDS.get(label.strip())
+        if separator and field and value.strip() and not result.get(field):
+            result[field] = value.strip()
+    return result
+
+
+def _curriculum_alignment(metadata: dict, curriculum_year: str | None) -> str | None:
+    if not curriculum_year:
+        return None
+    if str(metadata.get("curriculum_year") or "").strip() == curriculum_year:
+        return "source"
+    if str(metadata.get(f"achievement_standard_{curriculum_year}") or "").strip():
+        return "achievement_standard"
+    return None
+
+
+def _is_curriculum_aligned(metadata: dict, curriculum_year: str | None) -> bool:
+    return curriculum_year is None or _curriculum_alignment(metadata, curriculum_year) is not None
+
+
+def _chroma_where(subject: str | None, curriculum_year: str | None = None) -> dict | None:
+    clauses: list[dict] = []
+    if subject:
+        clauses.append({"subject": {"$eq": subject}})
+    if curriculum_year:
+        clauses.append({"curriculum_year": {"$eq": curriculum_year}})
+    if not clauses:
+        return None
+    if len(clauses) == 1:
+        return clauses[0]
+    return {"$and": clauses}
+
+
+def _query_chroma(
+    collection,
+    query_embedding: list,
+    result_count: int,
+    where: dict | None,
+) -> dict:
+    query_options = {
+        "query_embeddings": query_embedding,
+        "n_results": result_count,
+        "include": ["documents", "metadatas", "distances"],
+    }
+    if where:
+        query_options["where"] = where
+    return collection.query(**query_options)
+
+
+def search_chroma(
+    query: str,
+    top_k: int,
+    subject: str | None = None,
+    curriculum_year: str | None = None,
+) -> list[SearchResult]:
+    collection = _chroma_collection()
+    model = _embedding_model()
+    collection_count = collection.count()
+    if collection_count == 0:
+        return []
     with _chroma_lock:
         query_embedding = model.encode([f"query: {query}"], convert_to_numpy=True)
-        query_options = {
-            "query_embeddings": query_embedding.tolist(),
-            "n_results": top_k,
-            "include": ["documents", "metadatas", "distances"],
-        }
-        if subject:
-            query_options["where"] = {"subject": subject}
-        response = collection.query(
-            **query_options,
-        )
+        query_vector = query_embedding.tolist()
 
-    ids = response.get("ids", [[]])[0]
-    documents = response.get("documents", [[]])[0]
-    metadatas = response.get("metadatas", [[]])[0]
-    distances = response.get("distances", [[]])[0]
     results: list[SearchResult] = []
-    for source_id, content, metadata, distance in zip(ids, documents, metadatas, distances, strict=False):
-        distance_value = float(distance)
-        result_metadata = dict(metadata or {})
-        result_metadata["retriever"] = "chroma"
-        results.append(
-            SearchResult(
-                chunk_id=None,
-                source_id=str(source_id),
-                content=content or "",
-                score=round(max(0.0, min(1.0, 1.0 - distance_value)), 4),
-                metadata=result_metadata,
+    seen_ids: set[str] = set()
+
+    def append_response(response: dict) -> None:
+        ids = response.get("ids", [[]])[0]
+        documents = response.get("documents", [[]])[0]
+        metadatas = response.get("metadatas", [[]])[0]
+        distances = response.get("distances", [[]])[0]
+        for source_id, content, metadata, distance in zip(
+            ids,
+            documents,
+            metadatas,
+            distances,
+            strict=False,
+        ):
+            normalized_id = str(source_id)
+            if normalized_id in seen_ids:
+                continue
+            result_metadata = _metadata_from_content(metadata, content or "")
+            if not _is_curriculum_aligned(result_metadata, curriculum_year):
+                continue
+            seen_ids.add(normalized_id)
+            distance_value = float(distance)
+            result_metadata["retriever"] = "chroma"
+            result_metadata["rag_curriculum_year"] = curriculum_year
+            result_metadata["curriculum_alignment"] = _curriculum_alignment(
+                result_metadata,
+                curriculum_year,
+            )
+            results.append(
+                SearchResult(
+                    chunk_id=None,
+                    source_id=normalized_id,
+                    content=content or "",
+                    score=round(max(0.0, min(1.0, 1.0 - distance_value)), 4),
+                    metadata=result_metadata,
+                )
+            )
+            if len(results) == top_k:
+                return
+
+    if subject and curriculum_year:
+        with _chroma_lock:
+            direct_response = _query_chroma(
+                collection,
+                query_vector,
+                min(max(top_k * 2, 10), collection_count),
+                _chroma_where(subject, curriculum_year),
+            )
+        append_response(direct_response)
+        if len(results) == top_k:
+            return results
+
+    with _chroma_lock:
+        mapped_response = _query_chroma(
+            collection,
+            query_vector,
+            min(max(top_k * 8, 50), collection_count),
+            _chroma_where(subject),
+        )
+    append_response(mapped_response)
+    return results[:top_k]
+
+
+def has_subject_documents(
+    db: Session,
+    subject: str,
+    curriculum_year: str | None = None,
+) -> bool:
+    normalized_subject = subject.strip()
+    if not normalized_subject:
+        return False
+    chunks = db.query(DocumentChunk).join(Document).filter(Document.subject == normalized_subject)
+    for chunk in chunks.all():
+        metadata = dict(chunk.metadata_json or {})
+        if _is_curriculum_aligned(metadata, curriculum_year):
+            return True
+    if settings.rag_provider.strip().lower() not in {"auto", "chroma"}:
+        return False
+    try:
+        collection = _chroma_collection()
+        if curriculum_year:
+            direct = collection.get(
+                where=_chroma_where(normalized_subject, curriculum_year),
+                limit=1,
+                include=["metadatas"],
+            )
+            if direct.get("ids"):
+                return True
+        mapped = collection.get(
+            where=_chroma_where(normalized_subject),
+            limit=100,
+            include=["documents", "metadatas"],
+        )
+        return any(
+            _is_curriculum_aligned(_metadata_from_content(metadata, content or ""), curriculum_year)
+            for content, metadata in zip(
+                mapped.get("documents") or [],
+                mapped.get("metadatas") or [],
+                strict=False,
             )
         )
-    return results
+    except Exception as exc:
+        logger.warning("Chroma 과목 상태 확인에 실패했습니다: %s", exc)
+        return False
 
 
 def search(
@@ -223,14 +402,29 @@ def search(
     query: str,
     top_k: int = 3,
     subject: str | None = None,
+    curriculum_year: str | None = None,
 ) -> list[SearchResult]:
     normalized_subject = subject.strip() if subject else None
+    normalized_curriculum_year = (
+        settings.rag_curriculum_year if curriculum_year is None else curriculum_year
+    ).strip() or None
     provider = settings.rag_provider.strip().lower()
     if provider in {"auto", "chroma"}:
         try:
-            results = _chroma_search(query, top_k, normalized_subject)
+            results = search_chroma(
+                query,
+                top_k,
+                normalized_subject,
+                normalized_curriculum_year,
+            )
             if results:
                 return results
         except Exception as exc:
             logger.warning("Chroma 검색에 실패해 MySQL 어휘 검색으로 대체합니다: %s", exc)
-    return _lexical_search(db, query, top_k, normalized_subject)
+    return _lexical_search(
+        db,
+        query,
+        top_k,
+        normalized_subject,
+        normalized_curriculum_year,
+    )

@@ -79,11 +79,11 @@ export default function CalendarView() {
     if (!record.completed_at) return accumulator;
     const date = new Date(record.completed_at);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const current = accumulator[key] || { dateText: `${date.getMonth() + 1}월 ${date.getDate()}일`, records: [], notes: [], quizResult: null, totalTime: '0회' };
-    current.records.push({ title: record.topic || '하브루타 학습', detail: `${record.total_messages}개 메시지`, color: '#4f7df3' });
+    const current = accumulator[key] || { dateText: `${date.getMonth() + 1}월 ${date.getDate()}일`, records: [], notes: [], completedCount: 0 };
+    const scoreText = record.average_score == null ? '' : ` · 응답 평가 ${record.average_score}점`;
+    current.records.push({ title: record.topic || '하브루타 학습', detail: `${record.total_messages}개 메시지${scoreText}`, color: '#4f7df3' });
     current.notes.push(`${record.topic || '학습'} 핵심 정리`);
-    current.quizResult = record.average_score == null ? null : `AI 평가 ${record.average_score}점`;
-    current.totalTime = `학습 ${current.records.length}회`;
+    current.completedCount = current.records.length;
     accumulator[key] = current;
     return accumulator;
   }, {});
@@ -94,8 +94,7 @@ export default function CalendarView() {
     dateText: `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일`,
     records: [],
     notes: [],
-    quizResult: null,
-    totalTime: "0분"
+    completedCount: 0
   };
 
     // 날짜 셀 클릭 처리 함수
@@ -155,7 +154,7 @@ export default function CalendarView() {
             if (isSelected) dayClass += "selected-day ";
             if (isRealToday && !isSelected) dayClass += "real-today ";
 
-            // 특정 하단 도트 더미 표시용 키 생성
+            // 실제 학습 기록이 있는 날짜에 표시할 키 생성
             const cellDateKey = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, '0')}-${String(cellDate.getDate()).padStart(2, '0')}`;
             const hasData = !!learningRecords[cellDateKey];
 
@@ -212,23 +211,10 @@ export default function CalendarView() {
           )}
         </div>
 
-        {/* 3. 퀴즈 결과 */}
-        <div className="report-section">
-          <h4 className="report-section-sub">퀴즈 결과</h4>
-          {activeRecord.quizResult ? (
-            <div className="report-item quiz-success-box">
-              <span className="bullet green-bullet"></span>
-              <span className="item-title text-green">{activeRecord.quizResult}</span>
-            </div>
-          ) : (
-            <p className="no-data-text">응시한 퀴즈가 없습니다.</p>
-          )}
-        </div>
-
-        {/* 4. 총 학습 시간 고정 하단바 */}
+        {/* 서버가 제공하는 실제 완료 세션 수 */}
         <div className="total-time-footer-card">
-          <span className="total-label">총 학습 시간</span>
-          <span className="total-value">{activeRecord.totalTime}</span>
+          <span className="total-label">완료한 학습</span>
+          <span className="total-value">{activeRecord.completedCount}회</span>
         </div>
       </div>
     </main>

@@ -1,56 +1,29 @@
-import os
-from pathlib import Path
-
-import chromadb
-from sentence_transformers import SentenceTransformer
+from app.database.config import settings
+from app.services.rag_service import search_chroma
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-CHROMA_DIR = Path(os.getenv("CHROMA_DIR", BASE_DIR / "chroma_db"))
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION", "havruta_math_all")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-base")
-
-
-def get_embedding_model():
-    return SentenceTransformer(EMBEDDING_MODEL)
-
-
-def get_chroma_collection():
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    return client.get_collection(name=COLLECTION_NAME)
-
-
-def query_high1_math(question: str, top_k: int = 3):
-    model = get_embedding_model()
-    collection = get_chroma_collection()
-
-    query_text = f"query: {question}"
-
-    query_embedding = model.encode([query_text], convert_to_numpy=True)
-
-    results = collection.query(
-        query_embeddings=query_embedding.tolist(),
-        n_results=top_k,
-        where={"subject": "수학"},
+def query_high1_math(question: str, top_k: int = 3) -> None:
+    results = search_chroma(
+        question,
+        top_k,
+        subject="수학",
+        curriculum_year=settings.rag_curriculum_year,
     )
-
-    ids = results["ids"][0]
-    documents = results["documents"][0]
-    metadatas = results["metadatas"][0]
-    distances = results["distances"][0]
 
     print("=" * 80)
     print("사용자 질문:", question)
+    print("교육과정:", settings.rag_curriculum_year)
     print("=" * 80)
 
-    for i, doc_id in enumerate(ids):
+    for index, result in enumerate(results, 1):
         print()
-        print(f"[검색 결과 {i + 1}]")
-        print("ID:", doc_id)
-        print("파일:", metadatas[i].get("file"))
-        print("거리:", distances[i])
+        print(f"[검색 결과 {index}]")
+        print("ID:", result.source_id)
+        print("파일:", result.metadata.get("file"))
+        print("2022 정렬 방식:", result.metadata.get("curriculum_alignment"))
+        print("관련도:", result.score)
         print("-" * 80)
-        print(documents[i])
+        print(result.content)
         print("-" * 80)
 
 

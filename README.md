@@ -2,7 +2,7 @@
 
 > 전체 기획·구현·운영 설명서는 [`docs/PROJECT_MANUAL.md`](docs/PROJECT_MANUAL.md)를 참고하세요.
 
-고등학생이 AI와 질문·설명·피드백을 반복하며 학습하는 하브루타 튜터 MVP입니다. GitHub의 `main`, `AITraining`, `front` 브랜치를 하나의 `integration` 브랜치로 통합했습니다.
+고등학생이 질문·설명·피드백을 반복하며 학습하는 하브루타 튜터 MVP입니다. 백엔드, AITraining 자료 처리 코드, React 프런트엔드를 현재 `main` 코드에 통합했습니다.
 
 ## 공개 테스트
 
@@ -10,20 +10,20 @@
 - 백엔드 API: <https://backend-production-98f3.up.railway.app>
 - Swagger 문서: <https://backend-production-98f3.up.railway.app/docs>
 
-현재 Railway Hobby의 MySQL·Redis·Backend·Frontend 네 서비스가 실행 중입니다. 각 사용자가 웹앱에서 직접 가입한 뒤 학습방 초대 코드로 함께 테스트할 수 있습니다.
+위 주소는 이 저장소에 기록된 Railway 배포 주소입니다. 배포 서비스가 실행 중이면 각 사용자가 직접 가입한 뒤 학습방 초대 코드로 함께 테스트할 수 있습니다.
 
 ## 구현된 기능
 
 - 이메일 회원가입과 로그인, Argon2 비밀번호 해싱, JWT 인증
 - 학습방 생성, 6자리 초대 코드 참여, 인원 제한
-- 국어·영어·수학·사회·사회문화·과학·도덕·기술가정·정보 과목별 학습방
-- AI 학습 세션 시작, 메시지 저장, 답변 평가, 후속 질문
-- `AITraining`의 고1 수학 자료 10건 자동 DB 인덱싱
-- ChromaDB 의미 검색과 OpenAI 기반 하브루타 답변 생성
+- 국어·영어·수학·사회·사회문화·과학·도덕·기술가정·정보 학습방 생성
+- 하브루타 학습 세션 시작, 메시지 저장, 휴리스틱 응답 평가, 후속 질문
+- 저장소에 포함된 고1 수학 JSON 10건 자동 DB 인덱싱
+- 2022 성취기준 연계 ChromaDB 의미 검색과 OpenAI/Ollama 응답 생성
 - 학습 세션 종료, 평균 점수와 학습 기록 집계
 - 학습 종료 시 정리노트 자동 생성
 - RAG 자료 기반 복습 퀴즈 생성과 채점
-- 홈 통계, 캘린더, 마이페이지 실데이터 연동
+- 누적 홈 통계, 최근 10개 학습 기록 기반 캘린더, 마이페이지 실데이터 연동
 - React 회원가입/로그인, 학습방, AI 채팅, 노트, 퀴즈 UI
 - JWT·학습방 권한 검사를 적용한 실시간 그룹 채팅과 메시지 이력
 - Railway용 백엔드/프런트 Docker 배포, MySQL·Redis 연동 설정
@@ -38,7 +38,7 @@ flowchart LR
     API --> Auth[Auth / Rooms]
     API --> Tutor[Havruta Tutor]
     API --> Content[Notes / Quizzes / Dashboard]
-    Tutor --> RAG[Chroma / Lexical fallback]
+    Tutor --> RAG[2022-aligned Chroma / Lexical fallback]
     Tutor --> OpenAI[OpenAI Responses API]
     Tutor -. optional .-> Ollama[Local Ollama]
     Auth --> DB[(MySQL)]
@@ -50,7 +50,15 @@ flowchart LR
     JSON[AITraining JSON 10 files] --> RAG
 ```
 
-`AI_PROVIDER=openai`는 선택한 학습방 과목의 ChromaDB 검색 근거를 OpenAI Responses API에 전달합니다. API 키가 없거나 호출에 실패하면 규칙 기반 답변으로 대체됩니다. `RAG_PROVIDER=chroma`는 로컬 ChromaDB를 사용하며, DB나 선택 패키지가 없으면 MySQL 어휘 검색으로 대체됩니다. 검색 자료가 없는 과목은 OpenAI의 기초 교과 지식으로 하브루타 질문을 생성합니다.
+`AI_PROVIDER=openai`를 명시하고 API 키를 설정하면 선택한 학습방 과목의 검색 근거를 OpenAI Responses API에 전달합니다. `AI_PROVIDER=ollama`는 로컬 Ollama를 사용합니다. 외부 생성 모델이 없거나 호출에 실패하면 규칙 기반 답변으로 대체됩니다. `RAG_PROVIDER=auto` 또는 `chroma`는 로컬 ChromaDB를 우선 사용하고, DB나 선택 패키지가 없으면 관계형 DB의 어휘 검색으로 대체됩니다. 모든 검색은 기본적으로 `RAG_CURRICULUM_YEAR=2022`를 사용하며, 2022 원본 자료 또는 2022 성취기준이 매핑된 자료만 반환합니다.
+
+## 현재 데이터 범위
+
+- Git에 포함된 원본 RAG 자료는 `data/`의 고1 수학 JSON 10건입니다.
+- `chroma_db/`는 재생성 가능한 로컬 인덱스라 Git과 Docker 이미지에서 제외됩니다. 개인 PC에 별도 인덱스가 있으면 그 과목들도 검색할 수 있지만 Railway에 자동 전달되지는 않습니다.
+- 현재 로컬 Chroma에서는 국어·영어·수학·사회·사회문화·과학·도덕·기술가정·정보 9개 과목 모두 2022 성취기준 연계 검색을 검증했습니다.
+- 학습방은 모든 표시 과목으로 만들 수 있습니다. 해당 과목 RAG 자료가 없으면 화면에 이를 알리고 일반 하브루타 질문으로 진행합니다.
+- 퀴즈는 선택한 과목에서 검색된 RAG 자료에 질문과 정답이 있을 때만 생성합니다. 자료가 없을 때 다른 과목 문제를 대신 만드는 폴백은 사용하지 않습니다.
 
 ## 빠른 실행
 
@@ -113,10 +121,11 @@ npm run dev -- --host 127.0.0.1
 | `REDIS_URL` | Railway Redis URL | 다중 인스턴스 WebSocket 브로드캐스트 |
 | `JWT_SECRET_KEY` | 필수 | 운영 시 긴 무작위 문자열 사용 |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | 허용할 프런트 주소 |
-| `AI_PROVIDER` | `openai` | `openai`, `local` 또는 `ollama` |
-| `OPENAI_API_KEY` | 필수 | OpenAI API 키. Git에 커밋하지 않음 |
+| `AI_PROVIDER` | `local` | `openai`, `local` 또는 `ollama` |
+| `OPENAI_API_KEY` | 선택 | `AI_PROVIDER=openai`일 때 사용. Git에 커밋하지 않음 |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | 튜터 응답 생성 모델 |
-| `RAG_PROVIDER` | `chroma` | `chroma`, `auto` 또는 `lexical` |
+| `RAG_PROVIDER` | `auto` | `chroma`, `auto` 또는 `lexical` |
+| `RAG_CURRICULUM_YEAR` | `2022` | 모든 학습·퀴즈·검색에 적용할 교육과정 연도 |
 | `CHROMA_DIR` | `chroma_db` | 로컬 ChromaDB 디렉터리 |
 | `CHROMA_COLLECTION` | `havruta_math_all` | 검색할 컬렉션 |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API |
@@ -136,6 +145,7 @@ npm run dev -- --host 127.0.0.1
 | AI와 대화 | POST | `/sessions/{id}/messages` |
 | 세션 종료 | POST | `/sessions/{id}/finish` |
 | RAG 검색 | POST | `/rag/search` |
+| 과목별 RAG 상태 | GET | `/rag/status?subject=수학` |
 | 정리노트 | GET | `/notes` |
 | 퀴즈 생성/목록 | POST/GET | `/quizzes` |
 | 퀴즈 채점 | POST | `/quizzes/{id}/submit` |
@@ -200,4 +210,4 @@ tests/              # API 자동화 테스트
 - Alembic 기반 정식 마이그레이션 체계 도입
 - WebSocket 연결 제한, 메시지 신고·감사 정책 적용
 - 프롬프트 인젝션, 요청 제한, 감사 로그, 백업 정책 적용
-- 현재 규칙 기반 평가를 실제 교육 평가셋으로 검증
+- 현재 휴리스틱 응답 점수를 실제 교육 평가셋으로 검증

@@ -91,8 +91,22 @@ def test_rag_search(client, auth_headers):
         json={"query": "두 점의 x좌표가 같으면 직선은 어떻게 되나요?", "top_k": 3},
     )
     assert response.status_code == 200
+    assert response.json()["curriculum_year"] == "2022"
+    assert response.json()["alignment_policy"] == "source_or_achievement_standard"
     assert response.json()["results"]
     assert "평행" in response.json()["results"][0]["content"]
+    assert all(
+        result["metadata"]["rag_curriculum_year"] == "2022"
+        and result["metadata"]["curriculum_alignment"] in {"source", "achievement_standard"}
+        and result["metadata"].get("achievement_standard_2022")
+        for result in response.json()["results"]
+    )
+
+    math_status = client.get("/rag/status?subject=수학", headers=auth_headers)
+    science_status = client.get("/rag/status?subject=과학", headers=auth_headers)
+    assert math_status.json()["available"] is True
+    assert math_status.json()["curriculum_year"] == "2022"
+    assert science_status.json()["available"] is False
 
 
 def test_science_session_returns_renderable_message(client, auth_headers):
@@ -137,7 +151,7 @@ def test_generate_and_submit_quiz(client, auth_headers):
     created = client.post(
         "/quizzes",
         headers=auth_headers,
-        json={"topic": "직선의 방정식", "question_count": 3},
+        json={"subject": "수학", "topic": "직선의 방정식", "question_count": 3},
     )
     assert created.status_code == 201
     quiz_id = created.json()["quiz"]["id"]
@@ -151,3 +165,28 @@ def test_generate_and_submit_quiz(client, auth_headers):
     )
     assert submitted.status_code == 200
     assert 0 <= submitted.json()["score"] <= 100
+
+
+def test_quiz_does_not_fall_back_to_unrelated_subject(client, auth_headers):
+    created = client.post(
+        "/quizzes",
+        headers=auth_headers,
+        json={"subject": "과학", "topic": "광합성", "question_count": 3},
+    )
+    assert created.status_code == 422
+    assert "RAG" in created.json()["detail"]
+    assert client.get("/quizzes", headers=auth_headers).json()["count"] == 0
+
+
+def test_public_signup_cannot_assign_teacher_role(client):
+    response = client.post(
+        "/auth/signup",
+        json={
+            "email": "teacher@example.com",
+            "password": "strong-password",
+            "name": "교사 권한 요청",
+            "grade": None,
+            "role": "teacher",
+        },
+    )
+    assert response.status_code == 422

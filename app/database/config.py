@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen2.5:3b"
     rag_provider: str = "auto"
+    rag_curriculum_year: str = "2022"
     chroma_dir: str = "chroma_db"
     chroma_collection: str = "havruta_math_all"
     embedding_model: str = "intfloat/multilingual-e5-base"

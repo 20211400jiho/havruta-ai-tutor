@@ -8,6 +8,13 @@
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
+  --page-bg: #f5f7fb;
+  --surface-bg: #ffffff;
+  --surface-muted: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --input-bg: #ffffff;
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
@@ -17,7 +24,7 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -30,28 +37,39 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+:root[data-theme="dark"] {
+  --text: #a8b3c5;
+  --text-h: #f3f4f6;
+  --bg: #0f172a;
+  --border: #334155;
+  --code-bg: #1f2937;
+  --accent: #93aefc;
+  --accent-bg: rgba(147, 174, 252, .15);
+  --accent-border: rgba(147, 174, 252, .5);
+  --social-bg: rgba(47, 48, 58, .5);
+  --page-bg: #0f172a;
+  --surface-bg: #182235;
+  --surface-muted: #222f44;
+  --text-primary: #f1f5f9;
+  --text-muted: #a8b3c5;
+  --border-color: #334155;
+  --input-bg: #111827;
+  --shadow: rgba(0, 0, 0, .4) 0 10px 15px -3px, rgba(0, 0, 0, .25) 0 4px 6px -2px;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
+  color: var(--text-primary);
+  background: var(--page-bg);
+  transition: color .2s, background-color .2s;
+}
+
+input,
+select,
+textarea {
+  color: var(--text-primary);
+  background: var(--input-bg);
 }
 
 .app-error-page {
@@ -135,4 +153,80 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+:root[data-theme="dark"] .main-content,
+:root[data-theme="dark"] .content,
+:root[data-theme="dark"] .study-room-page,
+:root[data-theme="dark"] .calendar-page-container,
+:root[data-theme="dark"] .my-page-container {
+  color: var(--text-primary);
+  background: var(--page-bg) !important;
+}
+
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .ai-card,
+:root[data-theme="dark"] .status-card-custom,
+:root[data-theme="dark"] .history,
+:root[data-theme="dark"] .weekly,
+:root[data-theme="dark"] .study-start-card,
+:root[data-theme="dark"] .room-panel,
+:root[data-theme="dark"] .room-actions form,
+:root[data-theme="dark"] .room-chat-container,
+:root[data-theme="dark"] .calendar-main-box,
+:root[data-theme="dark"] .calendar-sidebar-report,
+:root[data-theme="dark"] .note-card,
+:root[data-theme="dark"] .notion-page-container,
+:root[data-theme="dark"] .profile-card,
+:root[data-theme="dark"] .dday-card,
+:root[data-theme="dark"] .stats-card,
+:root[data-theme="dark"] .badge-section,
+:root[data-theme="dark"] .quiz-history-card,
+:root[data-theme="dark"] .quiz-question-block,
+:root[data-theme="dark"] .auth-card {
+  color: var(--text-primary);
+  background: var(--surface-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+:root[data-theme="dark"] .hello,
+:root[data-theme="dark"] .cheer,
+:root[data-theme="dark"] .ai-card h3,
+:root[data-theme="dark"] .ai-card p,
+:root[data-theme="dark"] .section-title,
+:root[data-theme="dark"] .card-value,
+:root[data-theme="dark"] .quiz-main-title,
+:root[data-theme="dark"] .quiz-card-title,
+:root[data-theme="dark"] .quiz-question,
+:root[data-theme="dark"] .quiz-title-context,
+:root[data-theme="dark"] .calendar-main-title,
+:root[data-theme="dark"] .report-date-title,
+:root[data-theme="dark"] .auth-card h1 {
+  color: var(--text-primary);
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .chat-input,
+:root[data-theme="dark"] .chat-input-bar,
+:root[data-theme="dark"] .graph-box,
+:root[data-theme="dark"] .btn-back,
+:root[data-theme="dark"] .quiz-option,
+:root[data-theme="dark"] .day-cell,
+:root[data-theme="dark"] .setting-status {
+  color: var(--text-primary);
+  background: var(--surface-muted) !important;
+  border-color: var(--border-color) !important;
+}
+
+:root[data-theme="dark"] .ai .bubble,
+:root[data-theme="dark"] .friend .bubble {
+  color: var(--text-primary);
+  background: #26364f;
+}
+
+:root[data-theme="dark"] .user .bubble {
+  color: #f8fafc;
+  background: #31549d;
 }

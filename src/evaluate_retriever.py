@@ -1,25 +1,41 @@
-from app.database.connection import SessionLocal
-from app.services.rag_service import index_local_documents, search
+from app.database.config import settings
+from app.services.rag_service import search_chroma
 
 
-TEST_QUESTIONS = [
-    "기울기가 2이고 점 (1,-2)를 지나는 직선의 방정식은?",
-    "평행한 직선의 기울기는 어떻게 돼?",
-    "x절편과 y절편은 어떻게 구해?",
-    "두 점의 x좌표가 같으면 직선은 어떻게 돼?",
-]
+SUBJECT_QUERIES = {
+    "국어": "글의 중심 내용과 주제를 파악하는 방법",
+    "영어": "자신의 의견을 영어로 표현하는 방법",
+    "수학": "두 직선이 평행할 조건",
+    "사회": "민주주의에서 시민 참여가 중요한 이유",
+    "사회문화": "사회화와 사회 집단의 관계",
+    "과학": "광합성 과정과 필요한 조건",
+    "도덕": "도덕적 갈등 상황을 해결하는 방법",
+    "기술가정": "지속 가능한 생활을 실천하는 방법",
+    "정보": "알고리즘과 프로그램의 관계",
+}
 
 
 def evaluate() -> None:
-    db = SessionLocal()
-    try:
-        index_local_documents(db)
-        for question in TEST_QUESTIONS:
-            print("=" * 80, f"\n질문: {question}")
-            for rank, result in enumerate(search(db, question, 3), 1):
-                print(f"{rank}위: {result.source_id} / score={result.score:.4f}")
-    finally:
-        db.close()
+    print(f"RAG 교육과정: {settings.rag_curriculum_year}")
+    for subject, question in SUBJECT_QUERIES.items():
+        results = search_chroma(
+            question,
+            1,
+            subject=subject,
+            curriculum_year=settings.rag_curriculum_year,
+        )
+        print("=" * 80)
+        print(f"과목: {subject} / 질문: {question}")
+        if not results:
+            print("검색 결과 없음")
+            continue
+        result = results[0]
+        print(
+            f"ID: {result.source_id} / score={result.score:.4f} / "
+            f"alignment={result.metadata.get('curriculum_alignment')}"
+        )
+        print("질문:", result.metadata.get("question"))
+        print("정답:", result.metadata.get("answer"))
 
 
 if __name__ == "__main__":

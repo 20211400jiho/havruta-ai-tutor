@@ -40,10 +40,15 @@ class AppErrorBoundary extends Component {
   }
 }
 
+function getInitialDarkMode() {
+  const savedTheme = localStorage.getItem("havruta_theme");
+  if (savedTheme) return savedTheme === "dark";
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+}
+
 function App() {
   const [activeMenu, setActiveMenu] = useState(0);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isReminderEnabled, setIsReminderEnabled] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(Boolean(getToken()));
 
@@ -53,7 +58,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", isDarkMode ? "dark" : "light");
+    const theme = isDarkMode ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("havruta_theme", theme);
   }, [isDarkMode]);
 
   const logout = () => {
@@ -78,10 +85,9 @@ function App() {
         {activeMenu === 6 && <MyPageView user={user} />}
         {activeMenu === 7 && (
           <SettingsView
+            user={user}
             isDarkMode={isDarkMode}
-            toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-            isReminderEnabled={isReminderEnabled}
-            toggleReminder={() => setIsReminderEnabled(!isReminderEnabled)}
+            toggleDarkMode={() => setIsDarkMode((current) => !current)}
           />
         )}
       </div>

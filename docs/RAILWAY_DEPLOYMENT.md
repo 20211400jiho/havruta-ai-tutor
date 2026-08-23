@@ -1,10 +1,10 @@
 # Railway 배포 설명서
 
-이 문서는 `DB` 브랜치의 통합 프로젝트를 Railway에 배포하는 절차다. 최종 구성은 네 서비스다.
+이 문서는 현재 `main` 브랜치의 통합 프로젝트를 Railway에 배포하는 절차다. 최종 구성은 네 서비스다.
 
-## 현재 배포 상태
+## 기록된 배포 스냅샷
 
-2026-08-01 기준 Railway Hobby에 실제 배포와 외부 종단 간 검증을 완료했다.
+아래 표는 2026-08-01 당시 Railway Hobby 배포와 외부 종단 간 검증 기록이다. 현재 가동 여부와 연결 브랜치는 Railway 대시보드에서 다시 확인해야 한다.
 
 | 항목 | 주소·상태 |
 |---|---|
@@ -13,7 +13,7 @@
 | Swagger | <https://backend-production-98f3.up.railway.app/docs> |
 | MySQL | Railway private network, `SUCCESS` |
 | Redis | Railway private network, `SUCCESS` |
-| 배포 브랜치 | GitHub `DB` |
+| 당시 배포 브랜치 | GitHub `DB` |
 | 배포 커밋 | `17ec8ca` |
 
 실제 공개 주소에서 회원가입, CORS, MySQL 저장, JWT WebSocket 인증, 메시지 영속화를 검증했다. 기본 AI 모드는 GPT API나 Ollama를 호출하지 않는 `AI_PROVIDER=local`이다.
@@ -44,7 +44,7 @@ flowchart LR
 1. Railway에서 새 프로젝트를 만든다.
 2. `MySQL` 템플릿을 추가하고 서비스 이름을 `MySQL`로 둔다.
 3. `Redis` 템플릿을 추가하고 서비스 이름을 `Redis`로 둔다.
-4. GitHub 저장소 `20211400jiho/havruta-ai-tutor`의 `DB` 브랜치로 빈 서비스를 두 개 추가한다.
+4. GitHub 저장소 `20211400jiho/havruta-ai-tutor`의 `main` 브랜치로 빈 서비스를 두 개 추가한다.
 5. 두 GitHub 서비스 이름을 각각 `Backend`, `Frontend`로 지정한다.
 
 MySQL과 Redis는 외부 공개 TCP 주소가 아니라 같은 Railway 프로젝트의 참조 변수를 사용한다.
@@ -55,7 +55,7 @@ MySQL과 Redis는 외부 공개 TCP 주소가 아니라 같은 Railway 프로젝
 
 | 설정 | 값 |
 |---|---|
-| Branch | `DB` |
+| Branch | `main` |
 | Root Directory | `/` |
 | Config as Code | `/railway.json` |
 
@@ -70,6 +70,8 @@ JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 CORS_ORIGINS=https://프런트_공개_도메인
 AI_PROVIDER=local
+RAG_PROVIDER=auto
+RAG_CURRICULUM_YEAR=2022
 ```
 
 로컬 터미널에서 안전한 JWT 키를 만들 수 있다.
@@ -86,7 +88,7 @@ openssl rand -hex 32
 
 | 설정 | 값 |
 |---|---|
-| Branch | `DB` |
+| Branch | `main` |
 | Root Directory | `/my-app` |
 | Config as Code | `/my-app/railway.json` |
 
@@ -144,12 +146,13 @@ curl https://프런트_공개_도메인/health
 - Redis가 연결되면 각 Backend 인스턴스가 Pub/Sub 이벤트를 받아 자신의 WebSocket 사용자에게 전송한다.
 - Redis 장애 시 현재 Backend 인스턴스 내부 채팅으로 폴백하지만 다른 인스턴스 사용자에게는 전달되지 않을 수 있다.
 - 기본 `AI_PROVIDER=local`은 외부 AI 서버 없이 동작한다. Ollama를 쓰려면 Railway 내부에 별도 모델 서비스를 운영하거나 외부 LLM 제공자를 추가해야 한다.
+- `RAG_CURRICULUM_YEAR=2022`는 2022 원본 또는 2022 성취기준 매핑 자료만 허용한다. 로컬 `chroma_db/`는 Docker 이미지에서 제외되므로 전 과목 의미 검색을 배포하려면 Railway 영속 볼륨이나 외부 벡터 DB가 필요하다.
 
 ## 8. GitHub 자동 배포
 
-Backend와 Frontend가 GitHub `DB` 브랜치에 연결되어 있으면 해당 브랜치의 새 커밋으로 배포를 자동 트리거할 수 있다. 백엔드는 `/railway.json`, 프런트는 `/my-app/railway.json`의 watch pattern을 사용해 관련 코드 변경만 재배포한다.
+Backend와 Frontend가 GitHub `main` 브랜치에 연결되어 있으면 해당 브랜치의 새 커밋으로 배포를 자동 트리거할 수 있다. 백엔드는 `/railway.json`, 프런트는 `/my-app/railway.json`의 watch pattern을 사용해 관련 코드 변경만 재배포한다.
 
-운영에서는 직접 `DB`에 푸시하기보다 기능 브랜치와 Pull Request, 테스트 통과 후 병합하는 흐름을 권장한다.
+운영에서는 직접 `main`에 푸시하기보다 기능 브랜치와 Pull Request, 테스트 통과 후 병합하는 흐름을 권장한다.
 
 ## 9. 운영 체크리스트
 

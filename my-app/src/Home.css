@@ -4,7 +4,7 @@
 }
 
 body {
-  background: #f5f7fb;
+  background: var(--page-bg);
   font-family: sans-serif;
 }
 
@@ -322,6 +322,12 @@ body {
   background: #4f7df3;
 }
 
+.blue-box {
+  color: #2563eb;
+  background: #dbeafe;
+  font-weight: 800;
+}
+
 .green {
   background: #5dc786;
 }
@@ -357,7 +363,7 @@ body {
 
 .graph-box {
   margin-top: 20px;
-  height: 200px;
+  min-height: 120px;
   border-radius: 12px;
   background: #eef3ff;
   display: flex;

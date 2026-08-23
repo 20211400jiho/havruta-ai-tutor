@@ -21,7 +21,7 @@ export default function AuthView({ onAuthenticated }) {
       };
       const payload = mode === "login"
         ? { email: normalized.email, password: normalized.password }
-        : { ...normalized, role: "student" };
+        : normalized;
       const result = await api(`/auth/${mode === "login" ? "login" : "signup"}`, {
         method: "POST",
         body: JSON.stringify(payload),

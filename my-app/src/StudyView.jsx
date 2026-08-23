@@ -11,10 +11,13 @@ export default function StudyView() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [feedback, setFeedback] = useState(null);
+  const [ragStatus, setRagStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
   const selectedRoom = rooms.find((room) => String(room.id) === roomId);
+  const selectedSubject = selectedRoom?.subject || "";
+  const currentRagStatus = ragStatus?.subject === selectedSubject ? ragStatus : null;
 
   useEffect(() => {
     api("/rooms").then((result) => {
@@ -24,6 +27,14 @@ export default function StudyView() {
     }).catch((requestError) => setError(requestError.message));
   }, []);
   useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
+  useEffect(() => {
+    if (!selectedSubject) return undefined;
+    let cancelled = false;
+    api(`/rag/status?subject=${encodeURIComponent(selectedSubject)}`)
+      .then((result) => { if (!cancelled) setRagStatus(result); })
+      .catch(() => { if (!cancelled) setRagStatus(null); });
+    return () => { cancelled = true; };
+  }, [selectedSubject]);
 
   const startSession = async () => {
     if (!roomId) return setError("스터디룸 메뉴에서 학습방을 먼저 만들어주세요.");
@@ -72,6 +83,9 @@ export default function StudyView() {
       <label>학습방<select value={roomId} onChange={(e) => setRoomId(e.target.value)}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title} · {room.subject || "일반"}</option>)}</select></label>
       <label>교과목<input value={selectedRoom?.subject || "학습방을 선택하세요"} readOnly /></label>
       <label>오늘의 주제<input value={topic} onChange={(e) => setTopic(e.target.value)} /></label>
+      {currentRagStatus && !currentRagStatus.available && (
+        <p className="rag-notice">현재 {currentRagStatus.curriculum_year} 교육과정의 {currentRagStatus.subject} RAG 자료는 등록되지 않았습니다. 자료를 추가할 때까지 일반 하브루타 질문으로 진행됩니다.</p>
+      )}
       {error && <p className="study-error">{error}</p>}
       <button onClick={startSession} disabled={loading}>{loading ? "준비 중..." : "학습 시작"}</button>
     </main>
@@ -79,7 +93,7 @@ export default function StudyView() {
 
   return (
     <div className="study-chat-container">
-      <header className="study-chat-header"><div><strong>{topic}</strong><span> · 근거 기반 하브루타 학습</span></div><button onClick={finish} disabled={loading}>학습 종료</button></header>
+      <header className="study-chat-header"><div><strong>{topic}</strong><span> · {currentRagStatus?.available ? `${currentRagStatus.curriculum_year} 성취기준 연계 RAG 기반` : "일반 하브루타"} 학습</span></div><button onClick={finish} disabled={loading}>학습 종료</button></header>
       <div className="chat-messages">
         {messages.map((message) => (
           <div key={message.id} className={`message-row ${message.sender_type}`}>

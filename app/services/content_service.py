@@ -7,6 +7,10 @@ from app.models.study_content import Quiz, QuizQuestion, StudyNote
 from app.services.rag_service import search
 
 
+class QuizSourceNotFoundError(ValueError):
+    pass
+
+
 def create_note_for_session(db: Session, session: ChatSession) -> StudyNote:
     existing = db.query(StudyNote).filter(StudyNote.session_id == session.id).first()
     if existing:
@@ -21,7 +25,7 @@ def create_note_for_session(db: Session, session: ChatSession) -> StudyNote:
         *([f"- {message}" for message in user_messages] or ["- 아직 작성한 답변이 없습니다."]),
         "",
         "## 학습 결과",
-        f"- AI 평가 평균: {average if average is not None else '-'}점",
+        f"- 응답 평가 평균: {average if average is not None else '-'}점",
         f"- 총 대화 메시지: {len(session.messages)}개",
         "",
         "## 다시 생각할 질문",
@@ -39,30 +43,44 @@ def create_note_for_session(db: Session, session: ChatSession) -> StudyNote:
     return note
 
 
-def generate_quiz(db: Session, user_id: int, topic: str, question_count: int) -> Quiz:
-    contexts = search(db, topic, max(question_count, 5))
+def generate_quiz(
+    db: Session,
+    user_id: int,
+    topic: str,
+    question_count: int,
+    subject: str | None = None,
+) -> Quiz:
+    contexts = search(db, topic, max(question_count * 3, 10), subject)
     candidates = [context for context in contexts if context.metadata.get("question") and context.metadata.get("answer")]
     if not candidates:
-        candidates = [context for context in search(db, "직선 기울기 평행", 10) if context.metadata.get("answer")]
-    quiz = Quiz(user_id=user_id, title=f"{topic} 복습 퀴즈", subject="수학")
-    db.add(quiz)
-    db.flush()
+        raise QuizSourceNotFoundError("해당 주제와 일치하는 RAG 문제 자료가 없습니다.")
+
     all_answers = list(dict.fromkeys(context.metadata["answer"] for context in candidates))
-    fallback_answers = ["조건만으로는 알 수 없다.", "항상 x축과 평행하다.", "원점을 반드시 지난다."]
+    question_rows: list[dict] = []
     for context in candidates[:question_count]:
         correct = context.metadata["answer"]
-        distractors = [answer for answer in all_answers + fallback_answers if answer != correct][:3]
+        distractors = [answer for answer in all_answers if answer != correct][:3]
+        if not distractors:
+            continue
         options = [correct, *distractors]
         random.Random(context.source_id).shuffle(options)
-        db.add(
-            QuizQuestion(
-                quiz_id=quiz.id,
-                question=context.metadata["question"],
-                options=options,
-                correct_index=options.index(correct),
-                explanation=context.metadata.get("description") or correct,
-            )
+        question_rows.append(
+            {
+                "question": context.metadata["question"],
+                "options": options,
+                "correct_index": options.index(correct),
+                "explanation": context.metadata.get("description") or correct,
+            }
         )
+    if not question_rows:
+        raise QuizSourceNotFoundError("선택지를 구성할 만큼 RAG 문제 자료가 충분하지 않습니다.")
+
+    quiz_subject = subject or candidates[0].metadata.get("subject") or "자료 기반"
+    quiz = Quiz(user_id=user_id, title=f"{topic} 복습 퀴즈", subject=quiz_subject)
+    db.add(quiz)
+    db.flush()
+    for row in question_rows:
+        db.add(QuizQuestion(quiz_id=quiz.id, **row))
     db.commit()
     db.refresh(quiz)
     return quiz

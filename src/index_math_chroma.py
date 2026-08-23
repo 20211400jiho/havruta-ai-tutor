@@ -1,13 +1,8 @@
-from pathlib import Path
-
 import chromadb
 from sentence_transformers import SentenceTransformer
 
+from app.database.config import settings
 from src.load_math_json import load_high1_math
-
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-CHROMA_DIR = BASE_DIR / "chroma_db"
 
 
 def build_text_for_embedding(row) -> str:
@@ -21,14 +16,14 @@ def build_text_for_embedding(row) -> str:
 
 
 def get_embedding_model():
-    return SentenceTransformer("intfloat/multilingual-e5-base")
+    return SentenceTransformer(settings.embedding_model)
 
 
 def get_chroma_collection():
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    client = chromadb.PersistentClient(path=settings.chroma_dir)
 
     collection = client.get_or_create_collection(
-        name="high1_math"
+        name=settings.chroma_collection
     )
 
     return collection
@@ -53,11 +48,17 @@ def index_high1_math():
         doc_text = build_text_for_embedding(row)
 
         ids.append(row["id"])
-        documents.append(doc_text)
+        documents.append(f"passage: {doc_text}")
         metadatas.append({
             "file": row["file"],
             "subject": row["subject"],
             "grade": row["grade"],
+            "question": row["question"],
+            "answer": row["answer"],
+            "description": row["description"],
+            "curriculum_year": row["curriculum_year"],
+            "achievement_standard_2022": row["achievement_2022"],
+            "aligned_2022": bool(row["achievement_2022"]) or row["curriculum_year"] == "2022",
         })
 
     print("임베딩 생성 중...")

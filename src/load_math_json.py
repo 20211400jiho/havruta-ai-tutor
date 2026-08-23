@@ -1,8 +1,8 @@
-from app.services.rag_service import load_math_rows
+from app.services.rag_service import load_local_rows
 
 
 def load_high1_math() -> list[dict]:
-    return load_math_rows()
+    return load_local_rows()
 
 
 if __name__ == "__main__":

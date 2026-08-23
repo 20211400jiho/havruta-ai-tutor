@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.auth import LoginRequest, SignupRequest, TokenResponse, UserResponse
 from app.utils.security import create_access_token, hash_password, verify_password
 
@@ -25,7 +25,7 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)) -> TokenRespon
         password_hash=hash_password(request.password),
         name=request.name.strip(),
         grade=request.grade,
-        role=request.role,
+        role=UserRole.STUDENT.value,
     )
     db.add(user)
     db.commit()

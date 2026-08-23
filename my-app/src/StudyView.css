@@ -15,6 +15,7 @@
 .study-chat-header span { color: #64748b; }
 .feedback-strip { display: flex; gap: 14px; padding: 10px 16px; margin-bottom: 10px; border-radius: 12px; color: #31549d; background: #edf4ff; font-size: 14px; }
 .study-error { color: #be123c; margin: 4px 0; }
+.rag-notice { padding: 12px 14px; border-radius: 10px; color: #92400e; background: #fef3c7; font-size: 14px; line-height: 1.5; }
 
 .chat-messages {
     flex: 1;
