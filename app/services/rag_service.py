@@ -156,6 +156,7 @@ def _lexical_search(
     subject: str | None = None,
     curriculum_year: str | None = None,
     standard_code: str | None = None,
+    unit_code: str | None = None,
 ) -> list[SearchResult]:
     query_tokens = tokenize(query)
     results: list[SearchResult] = []
@@ -171,6 +172,10 @@ def _lexical_search(
             metadata.get("achievement_standard_2022") or chunk.content
         ):
             continue
+        if unit_code and f"[{unit_code}-" not in str(
+            metadata.get("achievement_standard_2022") or chunk.content
+        ):
+            continue
         document_tokens = tokenize(chunk.content)
         overlap = query_tokens & document_tokens
         exact_bonus = sum(2 for token in query_tokens if token in chunk.content.lower())
@@ -180,6 +185,8 @@ def _lexical_search(
         score = min(1.0, raw_score / max(6, len(query_tokens) * 4))
         metadata["rag_curriculum_year"] = curriculum_year
         metadata["curriculum_alignment"] = _curriculum_alignment(metadata, curriculum_year)
+        metadata["selected_standard_code"] = standard_code
+        metadata["selected_unit_code"] = unit_code
         results.append(
             SearchResult(
                 chunk_id=chunk.id,
@@ -271,6 +278,7 @@ def _query_chroma(
     result_count: int,
     where: dict | None,
     standard_code: str | None = None,
+    unit_code: str | None = None,
 ) -> dict:
     query_options = {
         "query_embeddings": query_embedding,
@@ -281,6 +289,8 @@ def _query_chroma(
         query_options["where"] = where
     if standard_code:
         query_options["where_document"] = {"$contains": f"[{standard_code}]"}
+    elif unit_code:
+        query_options["where_document"] = {"$contains": f"[{unit_code}-"}
     return collection.query(**query_options)
 
 
@@ -290,6 +300,7 @@ def search_chroma(
     subject: str | None = None,
     curriculum_year: str | None = None,
     standard_code: str | None = None,
+    unit_code: str | None = None,
 ) -> list[SearchResult]:
     collection = _chroma_collection()
     model = _embedding_model()
@@ -325,6 +336,10 @@ def search_chroma(
                 result_metadata.get("achievement_standard_2022") or ""
             ):
                 continue
+            if unit_code and f"[{unit_code}-" not in str(
+                result_metadata.get("achievement_standard_2022") or ""
+            ):
+                continue
             seen_ids.add(normalized_id)
             distance_value = float(distance)
             result_metadata["retriever"] = "chroma"
@@ -334,6 +349,7 @@ def search_chroma(
                 curriculum_year,
             )
             result_metadata["selected_standard_code"] = standard_code
+            result_metadata["selected_unit_code"] = unit_code
             results.append(
                 SearchResult(
                     chunk_id=None,
@@ -354,6 +370,7 @@ def search_chroma(
                 min(max(top_k * 2, 10), collection_count),
                 _chroma_where(subject, curriculum_year),
                 standard_code,
+                unit_code,
             )
         append_response(direct_response)
         if len(results) == top_k:
@@ -366,6 +383,7 @@ def search_chroma(
             min(max(top_k * 8, 50), collection_count),
             _chroma_where(subject),
             standard_code,
+            unit_code,
         )
     append_response(mapped_response)
     return results[:top_k]
@@ -420,6 +438,7 @@ def search(
     top_k: int = 3,
     subject: str | None = None,
     curriculum_year: str | None = None,
+    unit_code: str | None = None,
 ) -> list[SearchResult]:
     normalized_subject = subject.strip() if subject else None
     normalized_curriculum_year = (
@@ -427,6 +446,7 @@ def search(
     ).strip() or None
     selected_standard_match = SELECTED_STANDARD_PATTERN.search(query)
     selected_standard_code = selected_standard_match.group(1) if selected_standard_match else None
+    normalized_unit_code = unit_code.strip() if unit_code else None
     provider = settings.rag_provider.strip().lower()
     if provider in {"auto", "chroma"}:
         try:
@@ -436,6 +456,7 @@ def search(
                 normalized_subject,
                 normalized_curriculum_year,
                 selected_standard_code,
+                normalized_unit_code,
             )
             if results:
                 return results
@@ -448,4 +469,5 @@ def search(
         normalized_subject,
         normalized_curriculum_year,
         selected_standard_code,
+        normalized_unit_code,
     )

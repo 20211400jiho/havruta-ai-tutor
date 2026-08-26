@@ -44,6 +44,7 @@ def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
         "room_id": session.room_id,
         "user_id": session.user_id,
         "topic": session.topic,
+        "unit_code": session.unit_code,
         "state": session.state,
         "started_at": session.started_at,
         "ended_at": session.ended_at,
@@ -60,10 +61,21 @@ def create_session(
     db: Session = Depends(get_db),
 ) -> dict:
     room = ensure_room_access(db, payload.room_id, user.id)
-    session = ChatSession(room_id=payload.room_id, user_id=user.id, topic=payload.topic, state="questioning")
+    session = ChatSession(
+        room_id=payload.room_id,
+        user_id=user.id,
+        topic=payload.topic,
+        unit_code=payload.unit_code,
+        state="questioning",
+    )
     db.add(session)
     db.flush()
-    question, contexts = initial_question(db, payload.topic, room.subject or "일반")
+    question, contexts = initial_question(
+        db,
+        payload.topic,
+        room.subject or "일반",
+        payload.unit_code,
+    )
     ai_message = Message(session_id=session.id, sender_type="ai", content=question)
     db.add(ai_message)
     db.flush()
@@ -123,6 +135,7 @@ def send_message(
         session.topic or subject,
         payload.content,
         subject,
+        session.unit_code,
     )
     feedback = AIFeedback(session_id=session.id, message_id=user_message.id, **feedback_data)
     ai_message = Message(session_id=session.id, sender_type="ai", content=reply)

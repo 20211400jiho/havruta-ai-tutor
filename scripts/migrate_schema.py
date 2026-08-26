@@ -28,6 +28,11 @@ def migrate() -> None:
         if "grade" not in column_names("users"):
             connection.execute(text("ALTER TABLE users ADD COLUMN grade VARCHAR(50) NULL AFTER name"))
 
+        if "unit_code" not in column_names("chat_sessions"):
+            connection.execute(
+                text("ALTER TABLE chat_sessions ADD COLUMN unit_code VARCHAR(100) NULL AFTER topic")
+            )
+
         room_columns = column_names("learning_rooms")
         if "invite_code" not in room_columns:
             connection.execute(text("ALTER TABLE learning_rooms ADD COLUMN invite_code VARCHAR(10) NULL AFTER owner_id"))

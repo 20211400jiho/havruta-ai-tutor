@@ -22,10 +22,15 @@ def test_complete_learning_flow(client, auth_headers):
     session_response = client.post(
         "/sessions",
         headers=auth_headers,
-        json={"room_id": room["id"], "topic": "직선의 방정식"},
+        json={
+            "room_id": room["id"],
+            "topic": "도형의 방정식",
+            "unit_code": "10공수2-01",
+        },
     )
     assert session_response.status_code == 201
     session = session_response.json()["session"]
+    assert session["unit_code"] == "10공수2-01"
     assert session["messages"][0]["sender_type"] == "ai"
 
     answer_response = client.post(
@@ -146,6 +151,24 @@ def test_curriculum_catalog_and_selected_standard_filter(client, auth_headers):
     assert missing_response.status_code == 200
     assert missing_response.json()["results"] == []
 
+    unit_response = client.post(
+        "/rag/search",
+        headers=auth_headers,
+        json={
+            "query": "도형의 방정식",
+            "subject": "수학",
+            "unit_code": "10공수2-01",
+            "top_k": 3,
+        },
+    )
+    assert unit_response.status_code == 200
+    assert unit_response.json()["results"]
+    assert all(
+        "[10공수2-01-" in result["metadata"]["achievement_standard_2022"]
+        and result["metadata"]["selected_unit_code"] == "10공수2-01"
+        for result in unit_response.json()["results"]
+    )
+
 
 def test_science_session_returns_renderable_message(client, auth_headers):
     room_response = client.post(
@@ -189,7 +212,12 @@ def test_generate_and_submit_quiz(client, auth_headers):
     created = client.post(
         "/quizzes",
         headers=auth_headers,
-        json={"subject": "수학", "topic": "직선의 방정식", "question_count": 3},
+        json={
+            "subject": "수학",
+            "topic": "도형의 방정식",
+            "unit_code": "10공수2-01",
+            "question_count": 3,
+        },
     )
     assert created.status_code == 201
     quiz_id = created.json()["quiz"]["id"]

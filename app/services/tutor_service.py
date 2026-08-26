@@ -58,8 +58,9 @@ def initial_question(
     db: Session,
     topic: str,
     subject: str = "수학",
+    unit_code: str | None = None,
 ) -> tuple[str, list[SearchResult]]:
-    contexts = search(db, topic, top_k=1, subject=subject)
+    contexts = search(db, topic, top_k=1, subject=subject, unit_code=unit_code)
     if contexts and contexts[0].metadata.get("question"):
         question = contexts[0].metadata["question"]
         return f"오늘은 ‘{topic}’을 함께 탐구해볼게요. 먼저 생각을 말해보세요.\n\n{question}", contexts
@@ -94,8 +95,15 @@ def tutor_reply(
     topic: str,
     answer: str,
     subject: str = "수학",
+    unit_code: str | None = None,
 ) -> tuple[str, dict, list[SearchResult]]:
-    contexts = search(db, f"{topic} {answer}", top_k=3, subject=subject)
+    contexts = search(
+        db,
+        f"{topic} {answer}",
+        top_k=3,
+        subject=subject,
+        unit_code=unit_code,
+    )
     context = contexts[0] if contexts else None
     feedback = evaluate_answer(answer, context)
     followup = (

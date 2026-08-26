@@ -25,17 +25,17 @@
   font-size: 14px;
 }
 
-.curriculum-selector .curriculum-standard {
+.curriculum-selector .curriculum-unit {
   grid-column: 1 / -1;
 }
 
 .curriculum-selector.compact {
-  grid-template-columns: repeat(4, minmax(135px, 1fr));
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
   width: min(100%, 920px);
 }
 
-.curriculum-selector.compact .curriculum-standard {
-  grid-column: span 2;
+.curriculum-selector.compact .curriculum-unit {
+  grid-column: auto;
 }
 
 .curriculum-state {
@@ -58,8 +58,8 @@
     grid-template-columns: 1fr;
   }
 
-  .curriculum-selector .curriculum-standard,
-  .curriculum-selector.compact .curriculum-standard {
+  .curriculum-selector .curriculum-unit,
+  .curriculum-selector.compact .curriculum-unit {
     grid-column: auto;
   }
 }

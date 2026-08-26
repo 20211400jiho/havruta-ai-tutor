@@ -49,8 +49,15 @@ def generate_quiz(
     topic: str,
     question_count: int,
     subject: str | None = None,
+    unit_code: str | None = None,
 ) -> Quiz:
-    contexts = search(db, topic, max(question_count * 3, 10), subject)
+    contexts = search(
+        db,
+        topic,
+        max(question_count * 3, 10),
+        subject,
+        unit_code=unit_code,
+    )
     candidates = [context for context in contexts if context.metadata.get("question") and context.metadata.get("answer")]
     if not candidates:
         raise QuizSourceNotFoundError("해당 주제와 일치하는 RAG 문제 자료가 없습니다.")

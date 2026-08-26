@@ -60,7 +60,13 @@ def search_documents(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    results = search(db, payload.query, payload.top_k, payload.subject)
+    results = search(
+        db,
+        payload.query,
+        payload.top_k,
+        payload.subject,
+        unit_code=payload.unit_code,
+    )
     return {
         "query": payload.query,
         "curriculum_year": settings.rag_curriculum_year,

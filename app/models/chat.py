@@ -29,6 +29,7 @@ class ChatSession(Base):
     room_id: Mapped[int] = mapped_column(ForeignKey("learning_rooms.id"), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     topic: Mapped[str | None] = mapped_column(String(255))
+    unit_code: Mapped[str | None] = mapped_column(String(100))
     state: Mapped[str] = mapped_column(String(50), default=ChatState.STARTED.value, nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -37,7 +37,14 @@ def create_quiz(
     db: Session = Depends(get_db),
 ) -> dict:
     try:
-        quiz = generate_quiz(db, user.id, payload.topic, payload.question_count, payload.subject)
+        quiz = generate_quiz(
+            db,
+            user.id,
+            payload.topic,
+            payload.question_count,
+            payload.subject,
+            payload.unit_code,
+        )
     except QuizSourceNotFoundError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"quiz": quiz_summary(quiz)}

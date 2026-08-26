@@ -40,11 +40,18 @@ export default function StudyView() {
 
   const startSession = async () => {
     if (!roomId) return setError("스터디룸 메뉴에서 학습방을 먼저 만들어주세요.");
-    if (!topic) return setError("학습할 단원과 세부단원을 선택해주세요.");
+    if (!topic) return setError("학습할 단원을 선택해주세요.");
     if (currentRagStatus?.available === false) return setError("선택한 과목의 RAG 자료가 아직 준비되지 않았습니다.");
     setLoading(true); setError(""); setFeedback(null);
     try {
-      const result = await api("/sessions", { method: "POST", body: JSON.stringify({ room_id: Number(roomId), topic }) });
+      const result = await api("/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          room_id: Number(roomId),
+          topic,
+          unit_code: curriculumSelection.unit.code,
+        }),
+      });
       if (!result?.session?.id || !Array.isArray(result.session.messages)) {
         throw new Error("학습 세션 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
       }

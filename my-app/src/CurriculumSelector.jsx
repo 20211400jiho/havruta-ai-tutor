@@ -22,16 +22,13 @@ function makeSelection(catalog, choices = {}, preferredGrade = "") {
     || grades[0];
   const units = grade?.units || [];
   const unit = findBy(units, "code", choices.unitCode) || units[0];
-  const standards = unit?.standards || [];
-  const standard = findBy(standards, "code", choices.standardCode) || standards[0];
-  if (!level || !grade || !unit || !standard) return null;
+  if (!level || !grade || !unit) return null;
   return {
     subject: catalog.name,
     schoolLevel: level.name,
     grade: grade.name,
     unit,
-    standard,
-    topic: `${unit.title} · [${standard.code}] ${standard.title}`,
+    topic: unit.title,
   };
 }
 
@@ -81,8 +78,6 @@ export default function CurriculumSelector({
   const grades = level?.grades || [];
   const grade = findBy(grades, "name", selection?.grade);
   const units = grade?.units || [];
-  const unit = findBy(units, "code", selection?.unit?.code);
-  const standards = unit?.standards || [];
 
   if (subject && !isCurrent) return <p className="curriculum-state">2022 교육과정 단원을 불러오는 중...</p>;
   if (error) return <p className="curriculum-state error">{error}</p>;
@@ -112,7 +107,7 @@ export default function CurriculumSelector({
           {grades.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
         </select>
       </label>
-      <label>
+      <label className="curriculum-unit">
         단원
         <select
           aria-label="단원"
@@ -125,26 +120,8 @@ export default function CurriculumSelector({
           })}
         >
           {units.map((item) => (
-            <option key={item.code} value={item.code}>{item.title} ({item.code})</option>
-          ))}
-        </select>
-      </label>
-      <label className="curriculum-standard">
-        세부단원 · 성취기준
-        <select
-          aria-label="세부단원"
-          value={selection.standard.code}
-          disabled={disabled}
-          onChange={(event) => update({
-            schoolLevel: selection.schoolLevel,
-            grade: selection.grade,
-            unitCode: selection.unit.code,
-            standardCode: event.target.value,
-          })}
-        >
-          {standards.map((item) => (
             <option key={item.code} value={item.code}>
-              [{item.code}] {item.title} · 자료 {item.document_count.toLocaleString()}개
+              {item.title} · 자료 {item.document_count.toLocaleString()}개
             </option>
           ))}
         </select>
