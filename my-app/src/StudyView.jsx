@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import aiImage from "./assets/study_ai.png";
+import CurriculumSelector from "./CurriculumSelector";
 import "./StudyView.css";
 
 export default function StudyView() {
   const [rooms, setRooms] = useState([]);
   const [roomId, setRoomId] = useState("");
-  const [topic, setTopic] = useState("직선의 방정식");
+  const [curriculumSelection, setCurriculumSelection] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -17,6 +18,7 @@ export default function StudyView() {
   const bottomRef = useRef(null);
   const selectedRoom = rooms.find((room) => String(room.id) === roomId);
   const selectedSubject = selectedRoom?.subject || "";
+  const topic = curriculumSelection?.subject === selectedSubject ? curriculumSelection.topic : "";
   const currentRagStatus = ragStatus?.subject === selectedSubject ? ragStatus : null;
 
   useEffect(() => {
@@ -38,6 +40,8 @@ export default function StudyView() {
 
   const startSession = async () => {
     if (!roomId) return setError("스터디룸 메뉴에서 학습방을 먼저 만들어주세요.");
+    if (!topic) return setError("학습할 단원과 세부단원을 선택해주세요.");
+    if (currentRagStatus?.available === false) return setError("선택한 과목의 RAG 자료가 아직 준비되지 않았습니다.");
     setLoading(true); setError(""); setFeedback(null);
     try {
       const result = await api("/sessions", { method: "POST", body: JSON.stringify({ room_id: Number(roomId), topic }) });
@@ -80,14 +84,19 @@ export default function StudyView() {
     <main className="study-start-card">
       <span className="study-kicker">AI 하브루타 튜터</span>
       <h2>설명하고, 질문받고, 다시 생각해보세요.</h2>
-      <label>학습방<select value={roomId} onChange={(e) => setRoomId(e.target.value)}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title} · {room.subject || "일반"}</option>)}</select></label>
+      <label>학습방<select value={roomId} onChange={(e) => { setRoomId(e.target.value); setCurriculumSelection(null); }}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title} · {room.subject || "일반"}</option>)}</select></label>
       <label>교과목<input value={selectedRoom?.subject || "학습방을 선택하세요"} readOnly /></label>
-      <label>오늘의 주제<input value={topic} onChange={(e) => setTopic(e.target.value)} /></label>
+      <CurriculumSelector
+        subject={selectedSubject}
+        preferredGrade={selectedRoom?.grade || ""}
+        onSelectionChange={setCurriculumSelection}
+        disabled={loading}
+      />
       {currentRagStatus && !currentRagStatus.available && (
         <p className="rag-notice">현재 {currentRagStatus.curriculum_year} 교육과정의 {currentRagStatus.subject} RAG 자료는 등록되지 않았습니다. 자료를 추가할 때까지 일반 하브루타 질문으로 진행됩니다.</p>
       )}
       {error && <p className="study-error">{error}</p>}
-      <button onClick={startSession} disabled={loading}>{loading ? "준비 중..." : "학습 시작"}</button>
+      <button onClick={startSession} disabled={loading || !topic || currentRagStatus?.available === false}>{loading ? "준비 중..." : "선택한 단원으로 학습 시작"}</button>
     </main>
   );
 

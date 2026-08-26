@@ -1,0 +1,65 @@
+.curriculum-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.curriculum-selector label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.curriculum-selector select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dbe3f2;
+  border-radius: 10px;
+  color: #1e293b;
+  background: #fff;
+  font-size: 14px;
+}
+
+.curriculum-selector .curriculum-standard {
+  grid-column: 1 / -1;
+}
+
+.curriculum-selector.compact {
+  grid-template-columns: repeat(4, minmax(135px, 1fr));
+  width: min(100%, 920px);
+}
+
+.curriculum-selector.compact .curriculum-standard {
+  grid-column: span 2;
+}
+
+.curriculum-state {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #31549d;
+  background: #edf4ff;
+  font-size: 14px;
+}
+
+.curriculum-state.error {
+  color: #be123c;
+  background: #fff1f2;
+}
+
+@media (max-width: 900px) {
+  .curriculum-selector,
+  .curriculum-selector.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .curriculum-selector .curriculum-standard,
+  .curriculum-selector.compact .curriculum-standard {
+    grid-column: auto;
+  }
+}

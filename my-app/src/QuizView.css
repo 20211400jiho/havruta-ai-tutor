@@ -9,8 +9,10 @@
   border-bottom: 1px solid #f0f0f0;
   padding-bottom: 20px;
 }
-.quiz-generate-form { display: flex; gap: 10px; align-items: center; }
-.quiz-generate-form input, .quiz-generate-form select { padding: 11px; border: 1px solid #dbe3f2; border-radius: 10px; }
+.quiz-subject-action { display: flex; gap: 12px; align-items: flex-end; }
+.quiz-subject-action label { display: flex; flex-direction: column; gap: 6px; color: #475569; font-size: 13px; font-weight: 700; }
+.quiz-subject-action select { min-width: 120px; padding: 11px; border: 1px solid #dbe3f2; border-radius: 10px; background: white; }
+.quiz-list-header + .curriculum-selector { margin-bottom: 30px; }
 .quiz-question-block { margin: 24px 0; padding: 20px; border: 1px solid #e5e7eb; border-radius: 16px; }
 .quiz-question-block .quiz-option { width: 100%; text-align: left; border: 1px solid #dbe3f2; background: white; }
 .quiz-question-block .quiz-option.correct { border-color: #16a34a; background: #ecfdf5; }

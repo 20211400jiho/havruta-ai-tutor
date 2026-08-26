@@ -109,6 +109,44 @@ def test_rag_search(client, auth_headers):
     assert science_status.json()["available"] is False
 
 
+def test_curriculum_catalog_and_selected_standard_filter(client, auth_headers):
+    catalog_response = client.get("/rag/catalog?subject=수학", headers=auth_headers)
+    assert catalog_response.status_code == 200
+    catalog = catalog_response.json()
+    assert catalog["curriculum_year"] == "2022"
+    assert catalog["name"] == "수학"
+    assert catalog["standard_count"] > 0
+    high_school = next(level for level in catalog["school_levels"] if level["name"] == "고등학교")
+    first_grade = next(grade for grade in high_school["grades"] if grade["name"] == "1학년")
+    geometry = next(unit for unit in first_grade["units"] if unit["code"] == "10공수2-01")
+    assert geometry["title"] == "도형의 방정식"
+    assert any(item["code"] == "10공수2-01-02" for item in geometry["standards"])
+
+    selected_response = client.post(
+        "/rag/search",
+        headers=auth_headers,
+        json={
+            "query": "도형의 방정식 · [10공수2-01-02] 두 직선의 평행 조건과 수직 조건",
+            "subject": "수학",
+            "top_k": 3,
+        },
+    )
+    assert selected_response.status_code == 200
+    assert selected_response.json()["results"]
+    assert all(
+        "[10공수2-01-02]" in result["metadata"]["achievement_standard_2022"]
+        for result in selected_response.json()["results"]
+    )
+
+    missing_response = client.post(
+        "/rag/search",
+        headers=auth_headers,
+        json={"query": "[10공수2-99-99] 존재하지 않는 성취기준", "subject": "수학"},
+    )
+    assert missing_response.status_code == 200
+    assert missing_response.json()["results"] == []
+
+
 def test_science_session_returns_renderable_message(client, auth_headers):
     room_response = client.post(
         "/rooms",
