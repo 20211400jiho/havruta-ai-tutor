@@ -201,6 +201,10 @@ code {
 :root[data-theme="dark"] .quiz-title-context,
 :root[data-theme="dark"] .calendar-main-title,
 :root[data-theme="dark"] .report-date-title,
+:root[data-theme="dark"] .study-start-card label,
+:root[data-theme="dark"] .curriculum-selector label,
+:root[data-theme="dark"] .quiz-subject-action label,
+:root[data-theme="dark"] .quiz-main-sub,
 :root[data-theme="dark"] .auth-card h1 {
   color: var(--text-primary);
 }
