@@ -1,12 +1,14 @@
+import { getClientValue, removeClientValue, setClientValue, TOKEN_KEY } from "./clientStorage";
+
 export const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export function getToken() {
-  return localStorage.getItem("havruta_token");
+  return getClientValue(TOKEN_KEY);
 }
 
 export function setToken(token) {
-  if (token) localStorage.setItem("havruta_token", token);
-  else localStorage.removeItem("havruta_token");
+  if (token) setClientValue(TOKEN_KEY, token);
+  else removeClientValue(TOKEN_KEY);
 }
 
 export function getWebSocketUrl(roomId) {

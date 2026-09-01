@@ -10,6 +10,12 @@ import StudyRoomView from "./StudyRoomView.jsx";
 import MyPageView from "./MyPageView.jsx";
 import SettingsView from "./SettingsView.jsx";
 import { api, getToken, setToken } from "./api.js";
+import {
+  clearHavrutaClientState,
+  getClientValue,
+  setClientValue,
+  THEME_KEY,
+} from "./clientStorage.js";
 import "./Home.css";
 
 class AppErrorBoundary extends Component {
@@ -31,8 +37,16 @@ class AppErrorBoundary extends Component {
       return (
         <main className="app-error-page">
           <h1>화면을 표시하지 못했습니다.</h1>
-          <p>입력한 내용은 유지되지 않을 수 있습니다. 화면을 다시 불러와 주세요.</p>
-          <button type="button" onClick={() => window.location.reload()}>다시 불러오기</button>
+          <p>이 브라우저에 남은 로그인 정보나 캐시를 초기화한 뒤 다시 열어주세요. 계정과 서버의 학습 기록은 삭제되지 않습니다.</p>
+          <button
+            type="button"
+            onClick={() => {
+              clearHavrutaClientState();
+              window.location.replace("/");
+            }}
+          >
+            로그인 화면으로 다시 열기
+          </button>
         </main>
       );
     }
@@ -41,7 +55,7 @@ class AppErrorBoundary extends Component {
 }
 
 function getInitialDarkMode() {
-  const savedTheme = localStorage.getItem("havruta_theme");
+  const savedTheme = getClientValue(THEME_KEY);
   if (savedTheme) return savedTheme === "dark";
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 }
@@ -60,7 +74,7 @@ function App() {
   useEffect(() => {
     const theme = isDarkMode ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("havruta_theme", theme);
+    setClientValue(THEME_KEY, theme);
   }, [isDarkMode]);
 
   const logout = () => {

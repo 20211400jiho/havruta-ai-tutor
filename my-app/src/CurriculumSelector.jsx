@@ -121,7 +121,7 @@ export default function CurriculumSelector({
         >
           {units.map((item) => (
             <option key={item.code} value={item.code}>
-              {item.title} · 자료 {item.document_count.toLocaleString()}개
+              {item.title} · 자료 {Number(item.document_count ?? 0).toLocaleString()}개
             </option>
           ))}
         </select>
