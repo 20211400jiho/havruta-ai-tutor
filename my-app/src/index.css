@@ -89,6 +89,21 @@ textarea {
   margin-bottom: 24px;
 }
 
+.app-error-page details {
+  margin: -10px 0 22px;
+}
+
+.app-error-page summary {
+  cursor: pointer;
+}
+
+.app-error-page code {
+  display: block;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .app-error-page button {
   border: 0;
   border-radius: 6px;

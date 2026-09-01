@@ -21,11 +21,15 @@ import "./Home.css";
 class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorName: "", errorMessage: "" };
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      errorName: String(error?.name || "FrontendError").slice(0, 80),
+      errorMessage: String(error?.message || error || "알 수 없는 오류").slice(0, 300),
+    };
   }
 
   componentDidCatch(error, info) {
@@ -38,6 +42,10 @@ class AppErrorBoundary extends Component {
         <main className="app-error-page">
           <h1>화면을 표시하지 못했습니다.</h1>
           <p>이 브라우저에 남은 로그인 정보나 캐시를 초기화한 뒤 다시 열어주세요. 계정과 서버의 학습 기록은 삭제되지 않습니다.</p>
+          <details>
+            <summary>오류 정보</summary>
+            <code>{this.state.errorName}: {this.state.errorMessage}</code>
+          </details>
           <button
             type="button"
             onClick={() => {

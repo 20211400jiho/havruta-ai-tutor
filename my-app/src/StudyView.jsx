@@ -28,7 +28,15 @@ export default function StudyView() {
       if (loadedRooms.length) setRoomId(String(loadedRooms[0].id));
     }).catch((requestError) => setError(requestError.message));
   }, []);
-  useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
+  useEffect(() => {
+    const target = bottomRef.current;
+    if (typeof target?.scrollIntoView !== "function") return;
+    try {
+      target.scrollIntoView({ behavior: "smooth" });
+    } catch {
+      target.scrollIntoView();
+    }
+  }, [messages]);
   useEffect(() => {
     if (!selectedSubject) return undefined;
     let cancelled = false;
@@ -72,8 +80,12 @@ export default function StudyView() {
       if (!result?.message || typeof result.message.content !== "string") {
         throw new Error("AI 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
       }
-      setMessages((current) => [...current, result.message]);
-      setFeedback(result.feedback);
+      setMessages((current) => [...current, {
+        ...result.message,
+        sender_type: typeof result.message.sender_type === "string" ? result.message.sender_type : "ai",
+        content: result.message.content,
+      }]);
+      setFeedback(result.feedback && typeof result.feedback === "object" ? result.feedback : null);
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
   };
@@ -111,18 +123,23 @@ export default function StudyView() {
     <div className="study-chat-container">
       <header className="study-chat-header"><div><strong>{topic}</strong><span> · {currentRagStatus?.available ? `${currentRagStatus.curriculum_year} 성취기준 연계 RAG 기반` : "일반 하브루타"} 학습</span></div><button onClick={finish} disabled={loading}>학습 종료</button></header>
       <div className="chat-messages">
-        {messages.map((message) => (
-          <div key={message.id} className={`message-row ${message.sender_type}`}>
+        {messages.map((message, index) => (
+          <div key={`${message.sender_type}-${message.id ?? index}`} className={`message-row ${message.sender_type}`}>
             {message.sender_type === "ai" && <img src={aiImage} alt="AI" className="ai-avatar" />}
-            <div className="bubble">{(typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다.").split("\n").map((line, index) => <p key={index}>{line || <br />}</p>)}</div>
+            <div className="bubble"><span>{typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다."}</span></div>
           </div>
         ))}
-        {loading && <div className="message-row ai"><img src={aiImage} alt="AI" className="ai-avatar" /><div className="bubble">생각을 정리하고 있어요...</div></div>}
+        {loading && <div className="message-row ai"><img src={aiImage} alt="AI" className="ai-avatar" /><div className="bubble"><span>생각을 정리하고 있어요...</span></div></div>}
         <div ref={bottomRef} />
       </div>
-      {feedback && <div className="feedback-strip"><strong>최근 평가 {feedback.score}점</strong><span>{feedback.strengths}</span></div>}
+      {feedback && <div className="feedback-strip"><strong>최근 평가 {formatFeedback(feedback.score, "-")}점</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div>}
       {error && <p className="study-error">{error}</p>}
       <form className="chat-input-bar" onSubmit={send}><input value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 풀이 과정을 입력하세요..." /><button className="send-btn" disabled={loading || !input.trim()} aria-label="전송">➤</button></form>
     </div>
   );
+}
+
+function formatFeedback(value, fallback) {
+  if (typeof value === "string" || typeof value === "number") return value;
+  return fallback;
 }
