@@ -41,20 +41,12 @@ class AppErrorBoundary extends Component {
       return (
         <main className="app-error-page">
           <h1>화면을 표시하지 못했습니다.</h1>
-          <p>이 브라우저에 남은 로그인 정보나 캐시를 초기화한 뒤 다시 열어주세요. 계정과 서버의 학습 기록은 삭제되지 않습니다.</p>
+          <p>일시적인 화면 오류일 수 있습니다. 먼저 화면을 다시 불러오고, 문제가 반복될 때만 로그인 정보를 초기화해주세요. 서버의 학습 기록은 삭제되지 않습니다.</p>
           <details>
             <summary>오류 정보</summary>
             <code>{this.state.errorName}: {this.state.errorMessage}</code>
           </details>
-          <button
-            type="button"
-            onClick={() => {
-              clearHavrutaClientState();
-              window.location.replace("/");
-            }}
-          >
-            로그인 화면으로 다시 열기
-          </button>
+          <div className="app-error-actions"><button type="button" onClick={() => window.location.reload()}>화면 다시 불러오기</button><button type="button" className="secondary" onClick={() => { clearHavrutaClientState(); window.location.replace("/"); }}>로그인 정보 초기화</button></div>
         </main>
       );
     }

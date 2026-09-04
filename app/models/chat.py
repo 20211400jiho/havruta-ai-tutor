@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -30,6 +30,8 @@ class ChatSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     topic: Mapped[str | None] = mapped_column(String(255))
     unit_code: Mapped[str | None] = mapped_column(String(100))
+    school_level: Mapped[str | None] = mapped_column(String(50))
+    grade: Mapped[str | None] = mapped_column(String(50))
     state: Mapped[str] = mapped_column(String(50), default=ChatState.STARTED.value, nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -48,6 +50,7 @@ class Message(Base):
     session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"), nullable=False)
     sender_type: Mapped[str] = mapped_column(String(30), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    response_meta_json: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
     session = relationship("ChatSession", back_populates="messages")

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, getToken, getWebSocketUrl } from "./api";
+import CurriculumSelector from "./CurriculumSelector";
 import "./StudyRoomView.css";
 
 const SUBJECT_OPTIONS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
@@ -15,6 +16,9 @@ export default function StudyRoomView({ user }) {
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [curriculumSelection, setCurriculumSelection] = useState(null);
+  const [discussionFeedback, setDiscussionFeedback] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -119,6 +123,24 @@ export default function StudyRoomView({ user }) {
     setMessageInput("");
   };
 
+  const analyzeDiscussion = async () => {
+    if (!curriculumSelection?.topic) return setError("공동 하브루타를 분석할 단원을 선택해주세요.");
+    setAnalysisLoading(true); setError("");
+    try {
+      const result = await api(`/chat/rooms/${selectedRoom.id}/ai-feedback`, {
+        method: "POST",
+        body: JSON.stringify({
+          topic: curriculumSelection.topic,
+          unit_code: curriculumSelection.unit.code,
+          school_level: curriculumSelection.schoolLevel,
+          grade: curriculumSelection.grade,
+        }),
+      });
+      setDiscussionFeedback(result);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setAnalysisLoading(false); }
+  };
+
   const connectionLabel = {
     connected: "연결됨",
     connecting: "연결 중",
@@ -139,6 +161,12 @@ export default function StudyRoomView({ user }) {
           </header>
           {notice && <div className="chat-notice">{notice}</div>}
           {error && <div className="room-error">{error}</div>}
+          <section className="collaborative-panel">
+            <div><strong>공동 하브루타 AI 분석</strong><p>두 명 이상이 의견을 남긴 뒤 단원을 선택해 비교·분석합니다.</p></div>
+            <CurriculumSelector subject={selectedRoom.subject} preferredGrade={selectedRoom.grade} onSelectionChange={setCurriculumSelection} disabled={analysisLoading} compact />
+            <button type="button" onClick={analyzeDiscussion} disabled={analysisLoading || !curriculumSelection?.topic}>{analysisLoading ? "의견 분석 중..." : "AI로 토론 비교하기"}</button>
+            {discussionFeedback && <DiscussionFeedback result={discussionFeedback} />}
+          </section>
           <div className="chat-messages">
             {messages.map((message) => {
               const isMine = message.user_id === user.id;
@@ -197,4 +225,11 @@ export default function StudyRoomView({ user }) {
       </div>
     </main>
   );
+}
+
+function DiscussionFeedback({ result }) {
+  const meta = result.response_meta || {};
+  const provider = { openai: "OpenAI", rule: "규칙 기반 폴백" }[meta.ai_provider] || "AI";
+  const retriever = { chroma: "ChromaDB", lexical: "어휘 검색 폴백", none: "근거 없음" }[meta.retriever] || meta.retriever;
+  return <article className="discussion-feedback"><div className="discussion-meta">참여자 {result.participant_count}명 · {provider} · {retriever}</div><p>{result.summary}</p><details><summary>참여자 의견과 RAG 근거 보기</summary>{result.participant_views.map((view) => <p key={view.user_id}><strong>{view.user_name}</strong>: {view.key_point}</p>)}{(meta.sources || []).map((source) => <p key={source.source_id}><strong>{source.achievement_standard || source.subject}</strong><br />{source.excerpt}</p>)}</details></article>;
 }

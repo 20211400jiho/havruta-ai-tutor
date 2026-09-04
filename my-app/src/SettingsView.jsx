@@ -1,6 +1,13 @@
+import { useEffect, useState } from 'react';
+import { api } from './api';
 import './SettingsView.css';
 
 export default function SettingsView({ user, isDarkMode, toggleDarkMode }) {
+  const [systemStatus, setSystemStatus] = useState(null);
+  const [statusError, setStatusError] = useState('');
+  useEffect(() => {
+    api('/health/ready').then(setSystemStatus).catch((error) => setStatusError(error.message));
+  }, []);
   return (
     <main className="content settings-page">
       <h2>설정</h2>
@@ -30,10 +37,15 @@ export default function SettingsView({ user, isDarkMode, toggleDarkMode }) {
           </div>
         </section>
 
-        <div className="setting-status" role="status">
-          학습 알림은 실제 알림 서버가 준비된 뒤 제공할 예정입니다.
-        </div>
+        <section className="setting-section">
+          <h3>시스템 동작 상태</h3>
+          {systemStatus ? <div className="system-status-grid" role="status"><StatusItem label="데이터베이스" ready={systemStatus.database.ready} detail={systemStatus.database.ready ? '정상' : '연결 오류'} /><StatusItem label="RAG 검색" ready={systemStatus.rag.ready} detail={`${systemStatus.rag.provider} · ${systemStatus.rag.chroma_documents || systemStatus.rag.lexical_documents}건`} /><StatusItem label="AI 생성" ready={systemStatus.ai.provider_configured} detail={systemStatus.ai.provider_configured ? 'OpenAI 설정됨' : 'OpenAI 미설정 · 규칙 폴백'} /><StatusItem label="실시간 채팅" ready={systemStatus.realtime.redis_connected || systemStatus.realtime.local_websocket_fallback_ready} detail={systemStatus.realtime.redis_connected ? 'Redis 연결' : '단일 서버 폴백'} /></div> : <p className="setting-help">{statusError || '상태를 확인하고 있습니다...'}</p>}
+        </section>
       </div>
     </main>
   );
+}
+
+function StatusItem({ label, ready, detail }) {
+  return <div className="system-status-item"><span className={ready ? 'status-dot ready' : 'status-dot fallback'}></span><div><strong>{label}</strong><p>{detail}</p></div></div>;
 }

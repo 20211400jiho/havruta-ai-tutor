@@ -32,6 +32,20 @@ def migrate() -> None:
             connection.execute(
                 text("ALTER TABLE chat_sessions ADD COLUMN unit_code VARCHAR(100) NULL AFTER topic")
             )
+        session_columns = column_names("chat_sessions")
+        if "school_level" not in session_columns:
+            connection.execute(
+                text("ALTER TABLE chat_sessions ADD COLUMN school_level VARCHAR(50) NULL AFTER unit_code")
+            )
+        if "grade" not in session_columns:
+            connection.execute(
+                text("ALTER TABLE chat_sessions ADD COLUMN grade VARCHAR(50) NULL AFTER school_level")
+            )
+
+        if "response_meta_json" not in column_names("messages"):
+            connection.execute(
+                text("ALTER TABLE messages ADD COLUMN response_meta_json JSON NULL AFTER content")
+            )
 
         room_columns = column_names("learning_rooms")
         if "invite_code" not in room_columns:

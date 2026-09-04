@@ -28,6 +28,8 @@ export default function QuizView() {
           subject,
           topic,
           unit_code: curriculumSelection.unit.code,
+          school_level: curriculumSelection.schoolLevel,
+          grade: curriculumSelection.grade,
           question_count: 3,
         }),
       });

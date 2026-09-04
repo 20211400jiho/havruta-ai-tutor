@@ -13,9 +13,25 @@
 .study-start-card button, .study-chat-header button { border: 0; border-radius: 11px; padding: 13px 18px; color: white; background: #4f7df3; font-weight: 700; cursor: pointer; }
 .study-chat-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid #e5e7eb; }
 .study-chat-header span { color: #64748b; }
-.feedback-strip { display: flex; gap: 14px; padding: 10px 16px; margin-bottom: 10px; border-radius: 12px; color: #31549d; background: #edf4ff; font-size: 14px; }
+.feedback-strip { display: flex; justify-content: space-between; gap: 14px; padding: 10px 16px; margin-bottom: 10px; border-radius: 12px; color: #31549d; background: #edf4ff; font-size: 14px; }
+.feedback-strip > div:first-child { display: grid; gap: 4px; }
+.rubric-scores { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rubric-scores span { padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,.72); }
+.study-chat-header small { display: block; margin-top: 5px; color: #64748b; }
+.message-content-wrap { max-width: min(760px, 82%); }
+.message-content-wrap .bubble { max-width: none; }
+.evidence-panel { margin-top: 8px; border: 1px solid #dbe6f6; border-radius: 10px; padding: 8px 10px; color: #475569; background: #fff; font-size: 12px; }
+.evidence-panel summary { cursor: pointer; font-weight: 700; color: #31549d; }
+.evidence-list { display: grid; gap: 8px; margin-top: 9px; }
+.evidence-list article { padding-top: 8px; border-top: 1px solid #e2e8f0; }
+.evidence-list p { margin: 3px 0; line-height: 1.5; }
+.evidence-list small { color: #64748b; }
+@media (max-width: 720px) { .feedback-strip { flex-direction: column; } .message-content-wrap { max-width: 92%; } }
 .study-error { color: #be123c; margin: 4px 0; }
 .rag-notice { padding: 12px 14px; border-radius: 10px; color: #92400e; background: #fef3c7; font-size: 14px; line-height: 1.5; }
+.resume-sessions { display: grid; gap: 8px; padding: 14px; border: 1px solid #dbe6f6; border-radius: 12px; background: #f8fbff; }
+.resume-sessions > button { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 11px 13px; color: #31549d; background: white; border: 1px solid #dbe6f6; text-align: left; }
+.resume-sessions small { color: #64748b; font-weight: 500; }
 
 .chat-messages {
     flex: 1;

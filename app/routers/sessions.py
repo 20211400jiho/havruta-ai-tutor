@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
@@ -13,7 +14,10 @@ from app.models.learning import LearningRecord, LearningRoom, RoomMember
 from app.models.user import User
 from app.schemas.chat import MessageCreateRequest, SessionCreateRequest
 from app.services.content_service import create_note_for_session
-from app.services.tutor_service import initial_question, tutor_reply
+from app.database.config import settings
+from app.services.curriculum_catalog import is_valid_curriculum_selection
+from app.services.rate_limit_service import AIUsageLimitError, check_and_record_ai_usage
+from app.services.tutor_service import conversation_stage, initial_question, source_summary, tutor_reply
 
 
 router = APIRouter(prefix="/sessions", tags=["AI 학습 세션"])
@@ -34,8 +38,36 @@ def message_dict(message: Message) -> dict:
         "id": message.id,
         "sender_type": message.sender_type,
         "content": message.content,
+        "response_meta": message.response_meta_json,
         "created_at": message.created_at,
     }
+
+
+def resolve_learning_scope(
+    room: LearningRoom,
+    school_level: str | None,
+    grade: str | None,
+) -> tuple[str | None, str | None]:
+    room_grade = room.grade or ""
+    resolved_level = school_level
+    if not resolved_level:
+        resolved_level = "고등학교" if "고등" in room_grade else "중학교" if "중" in room_grade else None
+    resolved_grade = grade
+    if not resolved_grade:
+        grade_match = re.search(r"([1-3])\s*학년", room_grade)
+        resolved_grade = f"{grade_match.group(1)}학년" if grade_match else None
+    return resolved_level, resolved_grade
+
+
+def enforce_ai_quota(db: Session, user_id: int, action: str) -> None:
+    try:
+        check_and_record_ai_usage(db, user_id, action)
+    except AIUsageLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
 
 
 def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
@@ -45,12 +77,17 @@ def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
         "user_id": session.user_id,
         "topic": session.topic,
         "unit_code": session.unit_code,
+        "school_level": session.school_level,
+        "grade": session.grade,
         "state": session.state,
         "started_at": session.started_at,
         "ended_at": session.ended_at,
     }
     if include_messages:
-        result["messages"] = [message_dict(message) for message in session.messages]
+        result["messages"] = [
+            message_dict(message)
+            for message in sorted(session.messages, key=lambda item: (item.created_at, item.id))
+        ]
     return result
 
 
@@ -61,11 +98,21 @@ def create_session(
     db: Session = Depends(get_db),
 ) -> dict:
     room = ensure_room_access(db, payload.room_id, user.id)
+    school_level, grade = resolve_learning_scope(room, payload.school_level, payload.grade)
+    if payload.unit_code and not is_valid_curriculum_selection(
+        room.subject or "일반",
+        school_level,
+        grade,
+        payload.unit_code,
+    ):
+        raise HTTPException(status_code=422, detail="과목·학교급·학년·단원 조합이 올바르지 않습니다.")
     session = ChatSession(
         room_id=payload.room_id,
         user_id=user.id,
         topic=payload.topic,
         unit_code=payload.unit_code,
+        school_level=school_level,
+        grade=grade,
         state="questioning",
     )
     db.add(session)
@@ -74,9 +121,24 @@ def create_session(
         db,
         payload.topic,
         room.subject or "일반",
-        payload.unit_code,
+        unit_code=payload.unit_code,
+        school_level=school_level,
+        grade=grade,
     )
-    ai_message = Message(session_id=session.id, sender_type="ai", content=question)
+    response_meta = {
+        "ai_provider": "question_template",
+        "retriever": contexts[0].metadata.get("retriever", "lexical") if contexts else "none",
+        "grounded": bool(contexts),
+        "curriculum_year": settings.rag_curriculum_year,
+        "stage": "개념 설명",
+        "sources": [source_summary(item) for item in contexts],
+    }
+    ai_message = Message(
+        session_id=session.id,
+        sender_type="ai",
+        content=question,
+        response_meta_json=response_meta,
+    )
     db.add(ai_message)
     db.flush()
     for context in contexts:
@@ -84,7 +146,10 @@ def create_session(
             db.add(RagReference(message_id=ai_message.id, chunk_id=context.chunk_id, relevance_score=context.score))
     db.commit()
     db.refresh(session)
-    return {"session": session_dict(session, include_messages=True)}
+    return {
+        "session": session_dict(session, include_messages=True),
+        "response_meta": response_meta,
+    }
 
 
 @router.get("")
@@ -109,7 +174,14 @@ def get_session(
         raise HTTPException(status_code=404, detail="학습 세션을 찾을 수 없습니다.")
     if session.user_id != user.id:
         raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
-    return {"session": session_dict(session, include_messages=True)}
+    serialized = session_dict(session, include_messages=True)
+    return {
+        "session": serialized,
+        "response_meta": {
+            "stage": conversation_stage(serialized["messages"]),
+            "curriculum_year": settings.rag_curriculum_year,
+        },
+    }
 
 
 @router.post("/{session_id}/messages")
@@ -126,19 +198,42 @@ def send_message(
         raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
     if session.state == "finished":
         raise HTTPException(status_code=409, detail="이미 종료된 세션입니다.")
+    enforce_ai_quota(db, user.id, "tutor_message")
     user_message = Message(session_id=session.id, sender_type="user", content=payload.content.strip())
     db.add(user_message)
     db.flush()
+    history = (
+        db.query(Message)
+        .filter(Message.session_id == session.id)
+        .order_by(Message.created_at.asc(), Message.id.asc())
+        .all()
+    )
     subject = session.room.subject if session.room and session.room.subject else "일반"
-    reply, feedback_data, contexts = tutor_reply(
+    reply, feedback_data, contexts, response_meta = tutor_reply(
         db,
         session.topic or subject,
         payload.content,
         subject,
-        session.unit_code,
+        unit_code=session.unit_code,
+        conversation_history=[message_dict(message) for message in history],
+        school_level=session.school_level,
+        grade=session.grade,
     )
-    feedback = AIFeedback(session_id=session.id, message_id=user_message.id, **feedback_data)
-    ai_message = Message(session_id=session.id, sender_type="ai", content=reply)
+    feedback = AIFeedback(
+        session_id=session.id,
+        message_id=user_message.id,
+        score=feedback_data["score"],
+        summary=feedback_data["summary"],
+        strengths=feedback_data["strengths"],
+        improvements=feedback_data["improvements"],
+        followup_question=feedback_data["followup_question"],
+    )
+    ai_message = Message(
+        session_id=session.id,
+        sender_type="ai",
+        content=reply,
+        response_meta_json=response_meta,
+    )
     db.add_all([feedback, ai_message])
     db.flush()
     for context in contexts:
@@ -147,7 +242,11 @@ def send_message(
     session.state = "questioning"
     db.commit()
     db.refresh(ai_message)
-    return {"message": message_dict(ai_message), "feedback": feedback_data}
+    return {
+        "message": message_dict(ai_message),
+        "feedback": feedback_data,
+        "response_meta": response_meta,
+    }
 
 
 @router.post("/{session_id}/finish")

@@ -10,6 +10,19 @@ from app.models.user import User
 router = APIRouter(prefix="/notes", tags=["정리노트"])
 
 
+def parse_sections(content: str) -> list[dict]:
+    sections: list[dict] = []
+    current: dict | None = None
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if line.startswith("## "):
+            current = {"title": line[3:].strip(), "items": []}
+            sections.append(current)
+        elif line.startswith("- ") and current is not None:
+            current["items"].append(line[2:].strip())
+    return sections
+
+
 def note_dict(note: StudyNote, include_content: bool = True) -> dict:
     result = {
         "id": note.id,
@@ -21,6 +34,7 @@ def note_dict(note: StudyNote, include_content: bool = True) -> dict:
     }
     if include_content:
         result["content"] = note.content
+        result["sections"] = parse_sections(note.content)
     return result
 
 

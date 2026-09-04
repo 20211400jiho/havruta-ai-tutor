@@ -7,6 +7,7 @@ from app.models.study_content import Quiz, QuizAttempt
 from app.models.user import User
 from app.schemas.study_content import QuizGenerateRequest, QuizSubmitRequest
 from app.services.content_service import QuizSourceNotFoundError, generate_quiz
+from app.services.curriculum_catalog import is_valid_curriculum_selection
 
 
 router = APIRouter(prefix="/quizzes", tags=["복습 퀴즈"])
@@ -36,6 +37,13 @@ def create_quiz(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    if payload.unit_code and not is_valid_curriculum_selection(
+        payload.subject or "",
+        payload.school_level,
+        payload.grade,
+        payload.unit_code,
+    ):
+        raise HTTPException(status_code=422, detail="과목·학교급·학년·단원 조합이 올바르지 않습니다.")
     try:
         quiz = generate_quiz(
             db,
@@ -44,6 +52,8 @@ def create_quiz(
             payload.question_count,
             payload.subject,
             payload.unit_code,
+            payload.school_level,
+            payload.grade,
         )
     except QuizSourceNotFoundError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

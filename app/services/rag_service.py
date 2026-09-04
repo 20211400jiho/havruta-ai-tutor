@@ -157,6 +157,8 @@ def _lexical_search(
     curriculum_year: str | None = None,
     standard_code: str | None = None,
     unit_code: str | None = None,
+    school_level: str | None = None,
+    grade: str | None = None,
 ) -> list[SearchResult]:
     query_tokens = tokenize(query)
     results: list[SearchResult] = []
@@ -166,7 +168,10 @@ def _lexical_search(
     for chunk in chunks.all():
         metadata = _metadata_from_content(chunk.metadata_json, chunk.content)
         metadata.setdefault("subject", chunk.document.subject)
+        metadata.setdefault("grade", chunk.document.grade)
         if not _is_curriculum_aligned(metadata, curriculum_year):
+            continue
+        if not _matches_learning_scope(metadata, school_level, grade):
             continue
         if standard_code and f"[{standard_code}]" not in str(
             metadata.get("achievement_standard_2022") or chunk.content
@@ -187,6 +192,7 @@ def _lexical_search(
         metadata["curriculum_alignment"] = _curriculum_alignment(metadata, curriculum_year)
         metadata["selected_standard_code"] = standard_code
         metadata["selected_unit_code"] = unit_code
+        metadata["retriever"] = "lexical"
         results.append(
             SearchResult(
                 chunk_id=chunk.id,
@@ -259,12 +265,36 @@ def _is_curriculum_aligned(metadata: dict, curriculum_year: str | None) -> bool:
     return curriculum_year is None or _curriculum_alignment(metadata, curriculum_year) is not None
 
 
-def _chroma_where(subject: str | None, curriculum_year: str | None = None) -> dict | None:
+def _matches_learning_scope(
+    metadata: dict,
+    school_level: str | None,
+    grade: str | None,
+) -> bool:
+    """Reject cross-grade results while tolerating legacy rows with missing scope metadata."""
+    metadata_level = str(metadata.get("school_level") or "").strip()
+    metadata_grade = str(metadata.get("grade") or "").strip()
+    if school_level and metadata_level and metadata_level != school_level:
+        return False
+    if grade and metadata_grade and metadata_grade != grade:
+        return False
+    return True
+
+
+def _chroma_where(
+    subject: str | None,
+    curriculum_year: str | None = None,
+    school_level: str | None = None,
+    grade: str | None = None,
+) -> dict | None:
     clauses: list[dict] = []
     if subject:
         clauses.append({"subject": {"$eq": subject}})
     if curriculum_year:
         clauses.append({"curriculum_year": {"$eq": curriculum_year}})
+    if school_level:
+        clauses.append({"school_level": {"$eq": school_level}})
+    if grade:
+        clauses.append({"grade": {"$eq": grade}})
     if not clauses:
         return None
     if len(clauses) == 1:
@@ -301,6 +331,8 @@ def search_chroma(
     curriculum_year: str | None = None,
     standard_code: str | None = None,
     unit_code: str | None = None,
+    school_level: str | None = None,
+    grade: str | None = None,
 ) -> list[SearchResult]:
     collection = _chroma_collection()
     model = _embedding_model()
@@ -313,6 +345,7 @@ def search_chroma(
 
     results: list[SearchResult] = []
     seen_ids: set[str] = set()
+    query_tokens = tokenize(query)
 
     def append_response(response: dict) -> None:
         ids = response.get("ids", [[]])[0]
@@ -332,6 +365,8 @@ def search_chroma(
             result_metadata = _metadata_from_content(metadata, content or "")
             if not _is_curriculum_aligned(result_metadata, curriculum_year):
                 continue
+            if not _matches_learning_scope(result_metadata, school_level, grade):
+                continue
             if standard_code and f"[{standard_code}]" not in str(
                 result_metadata.get("achievement_standard_2022") or ""
             ):
@@ -342,7 +377,15 @@ def search_chroma(
                 continue
             seen_ids.add(normalized_id)
             distance_value = float(distance)
+            similarity_score = max(0.0, min(1.0, 1.0 - distance_value))
+            if similarity_score < settings.rag_min_score:
+                continue
+            content_tokens = tokenize(content or "")
+            lexical_coverage = len(query_tokens & content_tokens) / max(1, len(query_tokens))
+            relevance_score = similarity_score * 0.65 + lexical_coverage * 0.35
             result_metadata["retriever"] = "chroma"
+            result_metadata["semantic_score"] = round(similarity_score, 4)
+            result_metadata["lexical_coverage"] = round(lexical_coverage, 4)
             result_metadata["rag_curriculum_year"] = curriculum_year
             result_metadata["curriculum_alignment"] = _curriculum_alignment(
                 result_metadata,
@@ -355,12 +398,10 @@ def search_chroma(
                     chunk_id=None,
                     source_id=normalized_id,
                     content=content or "",
-                    score=round(max(0.0, min(1.0, 1.0 - distance_value)), 4),
+                    score=round(relevance_score, 4),
                     metadata=result_metadata,
                 )
             )
-            if len(results) == top_k:
-                return
 
     if subject and curriculum_year:
         with _chroma_lock:
@@ -368,24 +409,23 @@ def search_chroma(
                 collection,
                 query_vector,
                 min(max(top_k * 2, 10), collection_count),
-                _chroma_where(subject, curriculum_year),
+                _chroma_where(subject, curriculum_year, school_level, grade),
                 standard_code,
                 unit_code,
             )
         append_response(direct_response)
-        if len(results) == top_k:
-            return results
 
     with _chroma_lock:
         mapped_response = _query_chroma(
             collection,
             query_vector,
             min(max(top_k * 8, 50), collection_count),
-            _chroma_where(subject),
+            _chroma_where(subject, None, school_level, grade),
             standard_code,
             unit_code,
         )
     append_response(mapped_response)
+    results.sort(key=lambda result: result.score, reverse=True)
     return results[:top_k]
 
 
@@ -439,6 +479,8 @@ def search(
     subject: str | None = None,
     curriculum_year: str | None = None,
     unit_code: str | None = None,
+    school_level: str | None = None,
+    grade: str | None = None,
 ) -> list[SearchResult]:
     normalized_subject = subject.strip() if subject else None
     normalized_curriculum_year = (
@@ -447,6 +489,8 @@ def search(
     selected_standard_match = SELECTED_STANDARD_PATTERN.search(query)
     selected_standard_code = selected_standard_match.group(1) if selected_standard_match else None
     normalized_unit_code = unit_code.strip() if unit_code else None
+    normalized_school_level = school_level.strip() if school_level else None
+    normalized_grade = grade.strip() if grade else None
     provider = settings.rag_provider.strip().lower()
     if provider in {"auto", "chroma"}:
         try:
@@ -457,6 +501,8 @@ def search(
                 normalized_curriculum_year,
                 selected_standard_code,
                 normalized_unit_code,
+                normalized_school_level,
+                normalized_grade,
             )
             if results:
                 return results
@@ -470,4 +516,6 @@ def search(
         normalized_curriculum_year,
         selected_standard_code,
         normalized_unit_code,
+        normalized_school_level,
+        normalized_grade,
     )

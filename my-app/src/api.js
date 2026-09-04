@@ -19,14 +19,25 @@ export function getWebSocketUrl(roomId) {
 
 export async function api(path, options = {}) {
   const token = getToken();
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
+  const controller = options.signal ? null : new AbortController();
+  const timeoutId = controller ? window.setTimeout(() => controller.abort(), 70000) : null;
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      signal: options.signal || controller?.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.", { cause: error });
+    throw new Error("서버에 연결하지 못했습니다. 네트워크와 배포 상태를 확인해주세요.", { cause: error });
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = data.detail;
@@ -38,7 +49,8 @@ export async function api(path, options = {}) {
       }).join("\n");
       throw new Error(message);
     }
-    throw new Error(typeof detail === "string" ? detail : "요청을 처리하지 못했습니다.");
+    const statusMessage = response.status >= 500 ? "서버에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요." : "요청을 처리하지 못했습니다.";
+    throw new Error(typeof detail === "string" ? detail : statusMessage);
   }
   return data;
 }

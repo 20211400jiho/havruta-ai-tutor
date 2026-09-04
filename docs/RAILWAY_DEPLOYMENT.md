@@ -16,7 +16,7 @@
 | 당시 배포 브랜치 | GitHub `DB` |
 | 배포 커밋 | `17ec8ca` |
 
-실제 공개 주소에서 회원가입, CORS, MySQL 저장, JWT WebSocket 인증, 메시지 영속화를 검증했다. 기본 AI 모드는 GPT API나 Ollama를 호출하지 않는 `AI_PROVIDER=local`이다.
+실제 공개 주소에서 회원가입, CORS, MySQL 저장, JWT WebSocket 인증, 메시지 영속화를 검증했다. 현재 생성형 AI 제공자는 OpenAI만 사용하며, API 키가 없거나 호출이 실패하면 규칙 기반 응답으로 폴백한다.
 
 ```mermaid
 flowchart LR
@@ -69,7 +69,14 @@ JWT_SECRET_KEY=openssl로_생성한_충분히_긴_무작위값
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 CORS_ORIGINS=https://프런트_공개_도메인
-AI_PROVIDER=local
+OPENAI_API_KEY=발급받은_OpenAI_API_키
+OPENAI_MODEL=gpt-5.6-terra
+OPENAI_REASONING_EFFORT=none
+OPENAI_TIMEOUT_SECONDS=45
+OPENAI_MAX_OUTPUT_TOKENS=700
+AI_REQUESTS_PER_MINUTE=12
+AI_REQUESTS_PER_DAY=200
+RAG_MIN_SCORE=0.2
 RAG_PROVIDER=auto
 RAG_CURRICULUM_YEAR=2022
 ```
@@ -145,7 +152,9 @@ curl https://프런트_공개_도메인/health
 - 채팅 메시지는 `room_chat_messages` 테이블에 저장된다.
 - Redis가 연결되면 각 Backend 인스턴스가 Pub/Sub 이벤트를 받아 자신의 WebSocket 사용자에게 전송한다.
 - Redis 장애 시 현재 Backend 인스턴스 내부 채팅으로 폴백하지만 다른 인스턴스 사용자에게는 전달되지 않을 수 있다.
-- 기본 `AI_PROVIDER=local`은 외부 AI 서버 없이 동작한다. Ollama를 쓰려면 Railway 내부에 별도 모델 서비스를 운영하거나 외부 LLM 제공자를 추가해야 한다.
+- 생성형 응답은 OpenAI Responses API만 사용한다. `OPENAI_API_KEY`가 없거나 API 호출이 실패하면 세션이 중단되지 않도록 규칙 기반 답변으로 폴백한다.
+- 진행 중인 AI 대화는 MySQL에서 복원되며, 사용자별 분당·일일 요청 한도와 출력 토큰 상한으로 공개 테스트 비용을 보호한다.
+- RAG는 과목·학교급·학년·단원을 함께 필터링해 다른 학년 자료가 섞이지 않게 한다.
 - `RAG_CURRICULUM_YEAR=2022`는 2022 원본 또는 2022 성취기준 매핑 자료만 허용한다. 로컬 `chroma_db/`는 Docker 이미지에서 제외되므로 전 과목 의미 검색을 배포하려면 Railway 영속 볼륨이나 외부 벡터 DB가 필요하다.
 
 ## 8. GitHub 자동 배포
@@ -184,6 +193,6 @@ Docker 이미지는 Chroma와 동일한 임베딩 모델을 포함한다. 시작
 - Backend와 Frontend에 HTTPS 공개 도메인을 사용한다.
 - MySQL 정기 백업과 복구 테스트를 설정한다.
 - Railway 배포·애플리케이션 로그와 사용량 알림을 확인한다.
-- 로그인 요청 제한, 감사 로그, Refresh Token 정책을 추가한다.
+- 로그인 요청 제한, 감사 로그, Refresh Token 정책을 추가한다. AI 학습 요청 제한은 이미 적용돼 있다.
 - `create_all` 기반 마이그레이션을 운영 규모에 맞춰 Alembic으로 전환한다.
 - MySQL·Redis·애플리케이션 버전을 정기적으로 업데이트한다.

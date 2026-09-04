@@ -8,11 +8,16 @@ export default function CalendarView() {
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(today); // 달력 내비게이션용 (년, 월)
   const [selectedDate, setSelectedDate] = useState(today); // 우측 리포트 표시용 (년, 월, 일)
-  const [records, setRecords] = useState([]);
-  useEffect(() => { api('/dashboard/me').then((result) => setRecords(result.recent_records || [])).catch(() => {}); }, []);
+  const [events, setEvents] = useState([]);
+  const [error, setError] = useState('');
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth(); // 0 = 1월, 11 = 12월
+  useEffect(() => {
+    api(`/dashboard/calendar?year=${currentYear}&month=${currentMonth + 1}`)
+      .then((result) => { setEvents(result.events || []); setError(''); })
+      .catch((requestError) => setError(requestError.message));
+  }, [currentYear, currentMonth]);
 
   // 2. 월 변경 함수 (화살표 버튼 클릭 이벤트)
   const handlePrevMonth = () => {
@@ -75,16 +80,12 @@ export default function CalendarView() {
 
   const calendarDays = generateCalendarDays();
 
-  const learningRecords = records.reduce((accumulator, record) => {
-    if (!record.completed_at) return accumulator;
-    const date = new Date(record.completed_at);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const current = accumulator[key] || { dateText: `${date.getMonth() + 1}월 ${date.getDate()}일`, records: [], notes: [], completedCount: 0 };
-    const scoreText = record.average_score == null ? '' : ` · 응답 평가 ${record.average_score}점`;
-    current.records.push({ title: record.topic || '하브루타 학습', detail: `${record.total_messages}개 메시지${scoreText}`, color: '#4f7df3' });
-    current.notes.push(`${record.topic || '학습'} 핵심 정리`);
-    current.completedCount = current.records.length;
-    accumulator[key] = current;
+  const learningRecords = events.reduce((accumulator, event) => {
+    const date = new Date(`${event.date}T00:00:00`);
+    const current = { dateText: `${date.getMonth() + 1}월 ${date.getDate()}일`, records: [], notes: [], completedCount: event.records.length };
+    current.records = event.records.map((record) => ({ title: record.topic || '하브루타 학습', detail: `${record.explanation_level}${record.unit_code ? ` · ${record.unit_code}` : ''}`, color: '#4f7df3' }));
+    current.notes = event.notes.map((note) => note.title);
+    accumulator[event.date] = current;
     return accumulator;
   }, {});
 
@@ -111,6 +112,7 @@ export default function CalendarView() {
 
   return (
     <main className="content calendar-page-container">
+      {error && <p className="study-error">캘린더 기록을 불러오지 못했습니다: {error}</p>}
       <div className="calendar-main-box">
         <div className="calendar-header-zone">
           <h2 className="calendar-main-title">캘린더</h2>

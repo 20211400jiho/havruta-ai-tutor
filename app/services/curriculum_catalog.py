@@ -32,3 +32,25 @@ def get_subject_catalog(subject: str) -> dict | None:
         )
         return result
     return None
+
+
+def is_valid_curriculum_selection(
+    subject: str,
+    school_level: str | None,
+    grade: str | None,
+    unit_code: str | None,
+) -> bool:
+    """Validate a client selection against the server-owned 2022 curriculum catalog."""
+    if not all((school_level, grade, unit_code)):
+        return False
+    subject_catalog = get_subject_catalog(subject)
+    if subject_catalog is None:
+        return False
+    return any(
+        unit.get("code") == unit_code
+        for level in subject_catalog.get("school_levels", [])
+        if level.get("name") == school_level
+        for grade_item in level.get("grades", [])
+        if grade_item.get("name") == grade
+        for unit in grade_item.get("units", [])
+    )

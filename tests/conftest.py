@@ -22,9 +22,9 @@ TestSession = sessionmaker(bind=TEST_ENGINE, autoflush=False, autocommit=False)
 
 @pytest.fixture(autouse=True)
 def database():
-    original_ai_provider = settings.ai_provider
+    original_openai_api_key = settings.openai_api_key
     original_rag_provider = settings.rag_provider
-    settings.ai_provider = "local"
+    settings.openai_api_key = None
     settings.rag_provider = "lexical"
     Base.metadata.create_all(TEST_ENGINE)
     db = TestSession()
@@ -32,7 +32,7 @@ def database():
     db.close()
     yield
     Base.metadata.drop_all(TEST_ENGINE)
-    settings.ai_provider = original_ai_provider
+    settings.openai_api_key = original_openai_api_key
     settings.rag_provider = original_rag_provider
 
 

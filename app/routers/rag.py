@@ -6,7 +6,7 @@ from app.database.connection import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.chat import RagSearchRequest
-from app.services.curriculum_catalog import get_subject_catalog
+from app.services.curriculum_catalog import get_subject_catalog, is_valid_curriculum_selection
 from app.services.rag_service import has_subject_documents, index_local_documents, search
 
 
@@ -60,12 +60,21 @@ def search_documents(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    if payload.unit_code and not is_valid_curriculum_selection(
+        payload.subject or "",
+        payload.school_level,
+        payload.grade,
+        payload.unit_code,
+    ):
+        raise HTTPException(status_code=422, detail="과목·학교급·학년·단원 조합이 올바르지 않습니다.")
     results = search(
         db,
         payload.query,
         payload.top_k,
         payload.subject,
         unit_code=payload.unit_code,
+        school_level=payload.school_level,
+        grade=payload.grade,
     )
     return {
         "query": payload.query,

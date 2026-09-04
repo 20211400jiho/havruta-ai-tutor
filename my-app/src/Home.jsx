@@ -7,12 +7,12 @@ import { api } from "./api";
 export default function Home({ setActiveMenu, user }) {
   const [dashboard, setDashboard] = useState(null);
   useEffect(() => { api("/dashboard/me").then(setDashboard).catch(() => {}); }, []);
-  const summary = dashboard?.summary || { completed_sessions: 0, total_messages: 0, average_score: null };
+  const summary = dashboard?.summary || { completed_sessions: 0, completed_units: 0, completed_quizzes: 0, average_score: null, explanation_level: "학습 전" };
   const learningStatus = {
     completed: { title: "완료한 학습", value: `${summary.completed_sessions}회`, sub: "누적 세션" },
-    achievement: { title: "응답 평가", value: summary.average_score == null ? "-" : `${summary.average_score}점`, sub: "누적 평균", progress: summary.average_score ?? 0 },
-    quizzes: { title: "대화 메시지", value: `${summary.total_messages}개`, sub: "누적" },
-    notes: { title: "학습 기록", value: `${dashboard?.recent_records?.length ?? 0}개`, sub: "최근" }
+    achievement: { title: "설명 수준", value: summary.explanation_level, sub: "개념·근거·명료성", progress: summary.average_score ?? 0 },
+    quizzes: { title: "완료한 단원", value: `${summary.completed_units}개`, sub: "교육과정 단원" },
+    notes: { title: "완료한 퀴즈", value: `${summary.completed_quizzes}회`, sub: "복습 기록" }
   };
 
   return (
@@ -123,14 +123,21 @@ export default function Home({ setActiveMenu, user }) {
       <div className="bottom-section" style={{ marginTop: '40px' }}>
         <div className="history">
           <h3>최근 학습 기록</h3>
-          <ul>{(dashboard?.recent_records || []).slice(0, 3).map((record) => <li key={record.id}>{record.topic || "하브루타 학습"} · {record.average_score ?? "-"}점</li>)}</ul>
+          <ul>{(dashboard?.recent_records || []).slice(0, 3).map((record) => <li key={record.id}>{record.topic || "하브루타 학습"} · {scoreLevel(record.average_score)}</li>)}</ul>
         </div>
 
         <div className="weekly">
-          <h3>전체 학습 요약</h3>
-          <div className="graph-box">완료 세션 {summary.completed_sessions}회 · 총 메시지 {summary.total_messages}개</div>
+          <h3>다시 볼 개념</h3>
+          <div className="graph-box">{dashboard?.review_topics?.length ? dashboard.review_topics.join(" · ") : "현재 표시할 취약 개념이 없습니다."}</div>
         </div>
       </div>
     </main>
   );
+}
+
+function scoreLevel(score) {
+  if (score == null) return "평가 전";
+  if (score >= 80) return "설명 수준 우수";
+  if (score >= 60) return "설명 수준 충분함";
+  return "보완 필요";
 }

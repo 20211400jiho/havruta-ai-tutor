@@ -18,17 +18,26 @@
 - 학습방 생성, 6자리 초대 코드 참여, 인원 제한
 - 국어·영어·수학·사회·사회문화·과학·도덕·기술가정·정보 학습방 생성
 - 하브루타 학습 세션 시작, 메시지 저장, 휴리스틱 응답 평가, 후속 질문
+- 역할을 보존한 최근 대화와 5단계 학습 상태를 반영한 다회차 하브루타 응답
+- `몰라`·힌트 요청은 오답이나 진도로 계산하지 않고 직전 질문을 더 쉽게 이어서 질문
+- 진행 중인 학습 세션과 전체 메시지를 새로고침 후 자동 복원
+- 답변별 실제 RAG 검색기·AI 제공자·성취기준·근거·혼합 관련도 표시
+- 개념·근거·명료성·참여도의 설명 가능한 4영역 루브릭
 - 저장소에 포함된 고1 수학 JSON 10건 자동 DB 인덱싱
-- 2022 성취기준 연계 ChromaDB 의미 검색과 OpenAI/Ollama 응답 생성
+- 2022 성취기준 연계 ChromaDB 의미 검색과 OpenAI 응답 생성
 - 실제 Chroma 자료에서 생성한 학교급·학년·단원 선택 카탈로그
+- 과목·학교급·학년·단원 서버 검증과 동일 범위의 Chroma 메타데이터 필터
 - 학습 세션 종료, 평균 점수와 학습 기록 집계
 - 학습 종료 시 정리노트 자동 생성
 - RAG 자료 기반 복습 퀴즈 생성과 채점
 - 누적 홈 통계, 최근 10개 학습 기록 기반 캘린더, 마이페이지 실데이터 연동
 - React 회원가입/로그인, 학습방, AI 채팅, 노트, 퀴즈 UI
 - JWT·학습방 권한 검사를 적용한 실시간 그룹 채팅과 메시지 이력
+- 두 학생의 의견을 RAG 근거로 비교하는 공동 하브루타 분석
 - Railway용 백엔드/프런트 Docker 배포, MySQL·Redis 연동 설정
 - SQLite 단위·통합 테스트 및 실제 MySQL HTTP 스모크 테스트
+- 발표용 시스템 준비 상태 API와 9개 과목 RAG 평가 스크립트
+- 사용자별 AI 요청 한도와 응답 토큰 상한을 통한 공개 시연 비용 보호
 
 ## 아키텍처
 
@@ -41,7 +50,7 @@ flowchart LR
     API --> Content[Notes / Quizzes / Dashboard]
     Tutor --> RAG[2022-aligned Chroma / Lexical fallback]
     Tutor --> OpenAI[OpenAI Responses API]
-    Tutor -. optional .-> Ollama[Local Ollama]
+    Tutor -->|API 장애 시| Rule[Rule-based fallback]
     Auth --> DB[(MySQL)]
     Tutor --> DB
     Content --> DB
@@ -51,7 +60,7 @@ flowchart LR
     JSON[AITraining JSON 10 files] --> RAG
 ```
 
-`AI_PROVIDER=openai`를 명시하고 API 키를 설정하면 선택한 학습방 과목의 검색 근거를 OpenAI Responses API에 전달합니다. `AI_PROVIDER=ollama`는 로컬 Ollama를 사용합니다. 외부 생성 모델이 없거나 호출에 실패하면 규칙 기반 답변으로 대체됩니다. `RAG_PROVIDER=auto` 또는 `chroma`는 로컬 ChromaDB를 우선 사용하고, DB나 선택 패키지가 없으면 관계형 DB의 어휘 검색으로 대체됩니다. 모든 검색은 기본적으로 `RAG_CURRICULUM_YEAR=2022`를 사용하며, 2022 원본 자료 또는 2022 성취기준이 매핑된 자료만 반환합니다.
+`OPENAI_API_KEY`를 설정하면 선택한 학습방 과목의 검색 근거와 최근 학생·AI 대화를 역할별로 OpenAI Responses API에 전달합니다. API 키가 없거나 OpenAI 호출에 실패하면 세션이 멈추지 않도록 규칙 기반 답변으로 대체합니다. 외부 생성 모델 제공자는 OpenAI만 사용합니다. `RAG_PROVIDER=auto` 또는 `chroma`는 로컬 ChromaDB를 우선 사용하고, DB나 선택 패키지가 없으면 관계형 DB의 어휘 검색으로 대체됩니다. 모든 검색은 기본적으로 `RAG_CURRICULUM_YEAR=2022`와 선택한 학교급·학년·단원을 사용하며, 2022 원본 자료 또는 2022 성취기준이 매핑된 자료만 반환합니다.
 
 ## 현재 데이터 범위
 
@@ -123,15 +132,18 @@ npm run dev -- --host 127.0.0.1
 | `REDIS_URL` | Railway Redis URL | 다중 인스턴스 WebSocket 브로드캐스트 |
 | `JWT_SECRET_KEY` | 필수 | 운영 시 긴 무작위 문자열 사용 |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | 허용할 프런트 주소 |
-| `AI_PROVIDER` | `local` | `openai`, `local` 또는 `ollama` |
-| `OPENAI_API_KEY` | 선택 | `AI_PROVIDER=openai`일 때 사용. Git에 커밋하지 않음 |
+| `OPENAI_API_KEY` | 생성형 답변 사용 시 필수 | OpenAI API 키. Git에 커밋하지 않음 |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | 튜터 응답 생성 모델 |
+| `OPENAI_REASONING_EFFORT` | `none` | 모델 추론 강도 |
+| `OPENAI_TIMEOUT_SECONDS` | `45` | OpenAI 호출 제한 시간 |
+| `OPENAI_MAX_OUTPUT_TOKENS` | `700` | 응답 한 건의 최대 출력 토큰 |
+| `AI_REQUESTS_PER_MINUTE` | `12` | 사용자별 분당 AI 요청 한도 |
+| `AI_REQUESTS_PER_DAY` | `200` | 사용자별 24시간 AI 요청 한도 |
 | `RAG_PROVIDER` | `auto` | `chroma`, `auto` 또는 `lexical` |
 | `RAG_CURRICULUM_YEAR` | `2022` | 모든 학습·퀴즈·검색에 적용할 교육과정 연도 |
 | `CHROMA_DIR` | `chroma_db` | 로컬 ChromaDB 디렉터리 |
 | `CHROMA_COLLECTION` | `havruta_math_all` | 검색할 컬렉션 |
-| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API |
-| `OLLAMA_MODEL` | `qwen2.5:3b` | 로컬 생성 모델 |
+| `RAG_MIN_SCORE` | `0.2` | 의미 검색의 최소 유사도 기준 |
 
 ## 주요 API
 
@@ -153,15 +165,20 @@ npm run dev -- --host 127.0.0.1
 | 퀴즈 생성/목록 | POST/GET | `/quizzes` |
 | 퀴즈 채점 | POST | `/quizzes/{id}/submit` |
 | 내 학습 통계 | GET | `/dashboard/me` |
+| 월별 실제 학습·노트 | GET | `/dashboard/calendar` |
+| 공동 하브루타 분석 | POST | `/chat/rooms/{room_id}/ai-feedback` |
 | 그룹 WebSocket | WS | `/chat/ws/{room_id}` |
 | 그룹 채팅 이력 | GET | `/chat/rooms/{room_id}/messages` |
+| 발표 준비 상태 | GET | `/health/ready` |
 
 ## 테스트
 
 ```bash
+pip install -r requirements-dev.txt
 pytest -q
 cd my-app && npm run build
 python -m scripts.smoke_test
+python -m scripts.evaluate_rag --per-subject 3 --top-k 3
 ```
 
 - `pytest`: 인메모리 SQLite에서 API 흐름을 격리 검증합니다.
@@ -173,8 +190,8 @@ python -m scripts.smoke_test
 
 ```bash
 pip install -r requirements-ai.txt
-python -m src.index_math_chroma
-python -m src.query_math_chroma
+python -m scripts.verify_chroma
+python -m scripts.evaluate_rag --per-subject 3 --top-k 3
 ```
 
 `intfloat/multilingual-e5-base` 모델은 최초 실행 시 별도 다운로드되므로 네트워크와 수백 MB 이상의 여유 공간이 필요할 수 있습니다.
@@ -182,7 +199,6 @@ python -m src.query_math_chroma
 로컬 실행 시 프로젝트 루트의 `.env`에 새 API 키를 입력합니다.
 
 ```dotenv
-AI_PROVIDER=openai
 OPENAI_API_KEY=새로_발급한_API_키
 RAG_PROVIDER=chroma
 ```
@@ -203,9 +219,10 @@ app/
 data/               # AITraining 고1 수학 JSON
 my-app/             # React/Vite 프런트엔드
 scripts/            # DB 마이그레이션, 카탈로그 생성, 스모크 테스트
-src/                # RAG CLI/Chroma 실험 도구
 tests/              # API 자동화 테스트
 ```
+
+졸업작품 보완 내용, 시연 순서와 실제 RAG 측정 결과는 [`docs/CAPSTONE_COMPLETION.md`](docs/CAPSTONE_COMPLETION.md)에 정리되어 있습니다.
 
 ## 운영 전 필수 작업
 
@@ -213,5 +230,5 @@ tests/              # API 자동화 테스트
 - `mysql_secure_installation` 실행 및 root 계정 보호
 - Alembic 기반 정식 마이그레이션 체계 도입
 - WebSocket 연결 제한, 메시지 신고·감사 정책 적용
-- 프롬프트 인젝션, 요청 제한, 감사 로그, 백업 정책 적용
+- 프롬프트 인젝션 고도화, 로그인 제한, 감사 로그, 백업 정책 적용
 - 현재 휴리스틱 응답 점수를 실제 교육 평가셋으로 검증

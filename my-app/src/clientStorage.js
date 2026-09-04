@@ -2,6 +2,7 @@ const memoryValues = new Map();
 
 export const TOKEN_KEY = "havruta_token";
 export const THEME_KEY = "havruta_theme";
+export const ACTIVE_SESSION_KEY = "havruta_active_session";
 
 function browserStorage() {
   if (typeof window === "undefined") return null;
@@ -39,4 +40,5 @@ export function removeClientValue(key) {
 export function clearHavrutaClientState() {
   removeClientValue(TOKEN_KEY);
   removeClientValue(THEME_KEY);
+  removeClientValue(ACTIVE_SESSION_KEY);
 }

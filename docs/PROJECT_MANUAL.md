@@ -17,8 +17,9 @@
 3. 학생이 자기 언어로 개념이나 풀이를 설명한다.
 4. 시스템이 답변을 평가하고 강점과 개선점을 알려준다.
 5. AI가 다음 사고를 유도하는 후속 질문을 제시한다.
-6. 학습 종료 시 기록과 정리노트를 자동 생성한다.
-7. 같은 학습 자료를 사용해 복습 퀴즈를 생성한다.
+6. 짧은 답변이나 힌트 요청에도 직전 질문의 맥락을 유지한다.
+7. 학습 종료 시 기록과 정리노트를 자동 생성한다.
+8. 같은 학습 자료를 사용해 복습 퀴즈를 생성한다.
 
 ### 2.2 현재 완성 범위
 
@@ -35,7 +36,7 @@
 - 복습 퀴즈 생성과 채점
 - 홈, 캘린더, 마이페이지 통계 연동
 - MySQL 스키마와 데이터 인덱싱
-- 선택적 OpenAI/Ollama 생성 응답과 Chroma 의미 검색
+- OpenAI 생성 응답과 장애 시 규칙 기반 폴백, Chroma 의미 검색
 - API 자동화 테스트와 실제 MySQL 스모크 테스트
 
 ## 3. 브랜치 통합 이력
@@ -105,8 +106,8 @@ origin/DB         ← 과거 DB 통합·배포 이력
 |---|---|
 | 고1 수학 JSON 10건 | 기본 RAG 학습 자료 |
 | 로컬 어휘 검색 | 기본 경량 검색 엔진 |
-| 규칙 기반 평가 | 모델 없이 동작하는 기본 피드백 |
-| Ollama | 선택적 로컬 생성형 모델 |
+| OpenAI Responses API | RAG 근거와 대화 문맥을 사용한 생성형 튜터 응답 |
+| 규칙 기반 응답 | OpenAI API 키 누락·장애 시 학습 지속을 위한 폴백 |
 | ChromaDB | 선택적 의미 검색 제공자. 로컬 인덱스는 Git 제외 |
 | multilingual-e5-base | 선택적 다국어 임베딩 모델 |
 
@@ -128,7 +129,8 @@ flowchart LR
     Redis[(Redis Pub/Sub)]
     MySQL[(MySQL)]
     JSON[고1 수학 JSON]
-    Ollama[Ollama 선택]
+    OpenAI[OpenAI Responses API]
+    Rule[규칙 기반 폴백]
 
     Student --> React
     React -->|REST + Bearer JWT| API
@@ -141,7 +143,8 @@ flowchart LR
     WS --> MySQL
     WS --> Redis
     Tutor --> RAG
-    Tutor -.-> Ollama
+    Tutor --> OpenAI
+    Tutor -->|API 장애 시| Rule
     Auth --> MySQL
     Room --> MySQL
     Tutor --> MySQL
@@ -175,6 +178,7 @@ sequenceDiagram
 ├── main.py                       # FastAPI 조립, lifespan, CORS
 ├── requirements.txt              # 기본 백엔드 의존성
 ├── requirements-ai.txt           # 선택적 Chroma/임베딩 의존성
+├── requirements-dev.txt          # 테스트 전용 의존성
 ├── .env.example                  # 환경변수 예시
 ├── README.md                     # 빠른 시작 문서
 ├── app/
@@ -182,7 +186,7 @@ sequenceDiagram
 │   │   ├── base.py               # SQLAlchemy Base
 │   │   ├── config.py             # 환경변수 설정
 │   │   └── connection.py         # 엔진과 세션
-│   ├── models/                   # 15개 테이블 ORM
+│   ├── models/                   # 16개 테이블 ORM
 │   ├── routers/                  # HTTP/WebSocket 엔드포인트
 │   ├── schemas/                  # 요청/응답 검증
 │   ├── services/                 # RAG, 튜터, 콘텐츠 생성
@@ -201,14 +205,14 @@ sequenceDiagram
 │       └── MyPageView.jsx         # 사용자 통계
 ├── scripts/
 │   ├── migrate_schema.py          # 기존 MySQL 스키마 보완
-│   └── smoke_test.py              # 실제 서버/MySQL 검증
-├── src/                            # AITraining CLI 실험 도구
+│   ├── evaluate_rag.py            # 9개 과목 검색 정량 평가
+│   └── smoke_test.py              # 실제 서버/MySQL 전체 흐름 검증
 └── tests/                          # 격리 API 테스트
 ```
 
 ## 7. 데이터베이스 설계
 
-현재 MySQL에는 15개 도메인 테이블이 사용된다.
+현재 MySQL에는 16개 도메인 테이블이 사용된다.
 
 ```mermaid
 erDiagram
@@ -216,6 +220,7 @@ erDiagram
     USERS ||--o{ ROOM_MEMBERS : joins
     LEARNING_ROOMS ||--o{ ROOM_MEMBERS : includes
     USERS ||--o{ CHAT_SESSIONS : starts
+    USERS ||--o{ AI_USAGE_EVENTS : requests
     LEARNING_ROOMS ||--o{ CHAT_SESSIONS : contains
     CHAT_SESSIONS ||--o{ MESSAGES : contains
     USERS ||--o{ ROOM_CHAT_MESSAGES : writes
@@ -247,9 +252,10 @@ erDiagram
 
 | 테이블 | 핵심 컬럼 | 설명 |
 |---|---|---|
-| `chat_sessions` | room_id, user_id, topic, state | 한 번의 학습 세션 |
-| `messages` | session_id, sender_type, content | 사용자·AI·시스템 메시지 |
+| `chat_sessions` | room_id, user_id, topic, unit_code, school_level, grade, state | 교육과정 범위가 고정된 한 번의 학습 세션 |
+| `messages` | session_id, sender_type, content, response_meta_json | 사용자·AI·시스템 메시지와 답변별 RAG 근거 |
 | `ai_feedbacks` | score, strengths, improvements, followup_question | 답변 평가 |
+| `ai_usage_events` | user_id, action, created_at | 분당·일일 AI 요청 한도 계산 |
 | `learning_records` | total_messages, ai_score_avg, completed_at | 완료 세션 요약 |
 
 평가 점수는 0~100 범위 체크 제약을 사용한다. `learning_records.session_id`는 유니크이므로 한 세션에 완료 기록이 하나만 생성된다.
@@ -321,16 +327,16 @@ sequenceDiagram
     participant RAG as RAG Service
     participant DB as MySQL
 
-    S->>UI: 방과 주제 선택
+    S->>UI: 방과 학교급·학년·단원 선택
     UI->>API: POST /sessions
-    API->>RAG: 주제 검색
-    RAG-->>API: 관련 수학 청크
+    API->>RAG: 과목·학교급·학년·단원 검색
+    RAG-->>API: 해당 교육과정 범위의 청크
     API->>DB: 세션과 첫 AI 질문 저장
     API-->>UI: 첫 질문
     S->>UI: 답변 입력
     UI->>API: POST /sessions/{id}/messages
     API->>DB: 사용자 답변 저장
-    API->>RAG: 주제 + 답변 검색
+    API->>RAG: 단원 + 직전 질문 + 답변 검색
     API->>DB: 피드백, AI 응답, 근거 저장
     API-->>UI: 점수와 후속 질문
 ```
@@ -371,17 +377,27 @@ sequenceDiagram
 
 ## 9. AI와 RAG 상세 동작
 
-### 9.1 기본 로컬 모드
+### 9.1 OpenAI 응답 생성과 폴백
 
-기본 설정은 다음과 같다.
+외부 생성형 모델 제공자는 OpenAI만 사용한다. `.env`에 API 키를 설정하면 RAG 근거, 최근 10개 학생·AI 메시지를 역할별로 보존한 대화, 현재 하브루타 단계를 Responses API에 전달한다. 브라우저 새로고침 시 진행 세션 ID를 로컬에서 찾고 실제 메시지는 MySQL에서 다시 조회한다.
 
 ```env
-AI_PROVIDER=local
+OPENAI_API_KEY=발급받은_API_키
+OPENAI_MODEL=gpt-5.6-terra
+OPENAI_REASONING_EFFORT=none
+OPENAI_TIMEOUT_SECONDS=45
+OPENAI_MAX_OUTPUT_TOKENS=700
+AI_REQUESTS_PER_MINUTE=12
+AI_REQUESTS_PER_DAY=200
 ```
 
-이 모드는 GPU, 모델 다운로드, 외부 API 키가 필요 없다.
+API 키가 없거나 호출이 실패하면 같은 검색 근거와 루브릭을 사용하는 규칙 기반 답변으로 자동 전환한다. 이 폴백은 별도 생성형 모델이 아니며 발표 중 외부 API 장애가 발생해도 학습 세션을 이어가기 위한 안전장치다.
 
-#### 검색
+### 9.2 어휘 검색과 규칙 기반 평가
+
+Chroma를 사용할 수 없을 때의 검색과 생성 모델 호출 여부와 관계없이 제공하는 설명 루브릭은 다음과 같이 동작한다.
+
+#### 어휘 검색
 
 1. 질문에서 한글 단어, 영문, 숫자, 분수, 좌표를 추출한다.
 2. 불필요한 일반 단어를 제거한다.
@@ -393,24 +409,13 @@ AI_PROVIDER=local
 
 현재 점수는 교육용 평가 모델이 아니라 MVP용 휴리스틱이다.
 
-- 기본 점수: 50
-- 답변 길이 가산점
-- 기대 정답 핵심어 중복 가산점
-- 최대 점수: 95
+- 개념 정확성: 최대 40점
+- 근거·추론: 최대 30점
+- 설명 명료성: 최대 20점
+- 학습 참여도: 최대 10점
+- `몰라`, `힌트` 같은 도움 요청: 점수 없음, 단계 유지
 
 답변이 짧으면 근거나 풀이 과정을 더 쓰도록 안내한다. 핵심어가 부족하면 조건과 결론의 연결을 다시 확인하게 한다.
-
-### 9.2 Ollama 모드
-
-`.env`를 다음처럼 설정하면 로컬 Ollama를 호출한다.
-
-```env
-AI_PROVIDER=ollama
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen2.5:3b
-```
-
-Ollama에는 학습 주제, 학생 답변, RAG 참고 자료가 함께 전달된다. 30초 내에 응답하지 않거나 연결에 실패하면 기본 로컬 응답으로 자동 전환된다.
 
 ### 9.3 Chroma 의미 검색
 
@@ -418,16 +423,12 @@ Chroma와 다국어 E5 모델은 선택 의존성이다. 설치하고 `RAG_PROVI
 
 로컬 Chroma의 9개 과목 모두에서 2022 성취기준 연계 검색을 확인할 수 있다.
 
-`scripts/build_curriculum_catalog.py`는 Chroma 본문의 `성취기준2022`를 전수 집계해 `app/resources/curriculum_catalog.json`을 만든다. 프런트는 이 파일을 제공하는 `/rag/catalog` API로 학교급·학년·단원 선택지를 구성한다. `공국`, `공수` 같은 교육과정 코드 약어는 화면에 표시하지 않고 API에 `unit_code`로 전달한다. Chroma의 `where_document`와 관계형 DB 폴백 검색 모두 이 단원 코드로 해당 단원의 전체 성취기준 자료를 제한한다.
-
-```bash
-python -m src.evaluate_retriever
-```
+`scripts/build_curriculum_catalog.py`는 Chroma 본문의 `성취기준2022`를 전수 집계해 `app/resources/curriculum_catalog.json`을 만든다. 프런트는 이 파일을 제공하는 `/rag/catalog` API로 학교급·학년·단원 선택지를 구성한다. `공국`, `공수` 같은 교육과정 코드 약어는 화면에 표시하지 않고 API에 `unit_code`로 전달한다. 서버는 과목·학교급·학년·단원 조합을 카탈로그로 검증하고, Chroma 메타데이터와 본문 단원 코드를 함께 필터링한다. 상위 후보는 의미 유사도 65%와 어휘 포함률 35%로 재정렬한다.
 
 ```bash
 pip install -r requirements-ai.txt
-python -m src.index_math_chroma
-python -m src.query_math_chroma
+python -m scripts.verify_chroma
+python -m scripts.evaluate_rag --per-subject 3 --top-k 3
 ```
 
 최초 실행 시 Hugging Face 모델 다운로드가 필요하며 수백 MB 이상의 저장 공간을 사용할 수 있다.
@@ -640,6 +641,10 @@ python -m scripts.migrate_schema
 - `users.grade`
 - `learning_rooms.invite_code`
 - `learning_rooms.max_members`
+- `chat_sessions.unit_code`
+- `chat_sessions.school_level`
+- `chat_sessions.grade`
+- `messages.response_meta_json`
 - 방 멤버 중복 방지
 - 세션 완료 기록 중복 방지
 - 문서와 청크 중복 방지
@@ -688,13 +693,18 @@ VITE_API_URL=http://127.0.0.1:8000
 | `JWT_ALGORITHM` | JWT 알고리즘 | HS256 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 토큰 만료 | 10080분 |
 | `CORS_ORIGINS` | 허용 프런트 주소 | localhost:5173 등 |
-| `AI_PROVIDER` | AI 방식 | local, openai 또는 ollama |
+| `OPENAI_API_KEY` | OpenAI API 인증키 | 생성형 답변 사용 시 필수, Git 커밋 금지 |
+| `OPENAI_MODEL` | 튜터 생성 모델 | gpt-5.6-terra |
+| `OPENAI_REASONING_EFFORT` | 모델 추론 강도 | none |
+| `OPENAI_TIMEOUT_SECONDS` | OpenAI 호출 제한 시간 | 45초 |
+| `OPENAI_MAX_OUTPUT_TOKENS` | 응답당 출력 상한 | 700 |
+| `AI_REQUESTS_PER_MINUTE` | 사용자별 분당 AI 요청 한도 | 12 |
+| `AI_REQUESTS_PER_DAY` | 사용자별 24시간 AI 요청 한도 | 200 |
+| `RAG_MIN_SCORE` | Chroma 최소 의미 유사도 | 0.2 |
 | `RAG_PROVIDER` | 검색 방식 | auto, chroma 또는 lexical |
 | `RAG_CURRICULUM_YEAR` | 공통 교육과정 필터 | 2022 |
 | `CHROMA_DIR` | 로컬 Chroma 경로 | chroma_db |
 | `CHROMA_COLLECTION` | Chroma 컬렉션 | havruta_math_all |
-| `OLLAMA_BASE_URL` | Ollama 주소 | 127.0.0.1:11434 |
-| `OLLAMA_MODEL` | Ollama 모델 | qwen2.5:3b |
 
 실제 `.env`는 `.gitignore`에 포함되어 GitHub에 올라가지 않는다.
 
@@ -825,7 +835,7 @@ brew services start mysql
 
 ### 17.1 응답 평가
 
-기본 점수는 규칙 기반이므로 실제 교육적 성취도를 보장하지 않는다. 별도의 전문가 평가셋과 루브릭 검증이 필요하다.
+4영역 설명 점수는 규칙 기반 프로젝트 지표이므로 실제 교육적 성취도를 보장하지 않는다. 별도의 전문가 평가셋과 루브릭 검증이 필요하다.
 
 ### 17.2 데이터 규모
 
@@ -845,7 +855,7 @@ JWT 인증, 학습방 멤버 검사, 메시지 DB 저장, 브라우저 재접속
 
 ### 17.6 프런트 설정
 
-다크 모드는 브라우저에 저장되며 계정 간 동기화되지 않는다. 프로필 수정과 학습 알림은 아직 구현되지 않아 설정 화면에 상태만 명시한다.
+다크 모드는 브라우저에 저장되며 계정 간 동기화되지 않는다. 설정 화면은 MySQL, RAG, 생성 제공자와 실시간 채팅 폴백의 실제 준비 상태를 표시한다.
 
 ## 18. 다음 개발 우선순위
 
@@ -861,7 +871,7 @@ JWT 인증, 학습방 멤버 검사, 메시지 DB 저장, 브라우저 재접속
 - 교육 루브릭 기반 평가 스키마
 - RAG 정답률 평가셋
 - 더 많은 교과 데이터
-- Ollama 또는 외부 LLM 제공자 추상화
+- OpenAI 응답 품질 회귀 평가와 비용·토큰 모니터링
 - 프롬프트 인젝션 방어
 
 ### 3순위 — 실시간 협업
@@ -916,7 +926,7 @@ git switch -c feature/기능명
 | 학습방 | 구현·검증 완료 |
 | AI 학습 세션 | 구현·검증 완료 |
 | 로컬 RAG | 구현·검증 완료 |
-| Ollama | 선택적 연동 구현 |
+| OpenAI | Responses API 연동·규칙 폴백 구현 |
 | 정리노트 | 구현·검증 완료 |
 | 퀴즈 | 구현·검증 완료 |
 | 통계·캘린더 | 구현 완료 |
@@ -926,4 +936,4 @@ git switch -c feature/기능명
 | 프런트 린트/빌드 | 통과 |
 | Railway 배포 이력 | 2026-08-01 스냅샷은 별도 배포 문서에 기록 |
 
-현재 프로젝트는 백엔드·프런트·DB·선택적 AI/RAG를 통합한 MVP다. 배포 주소와 2026-08-01 당시 검증 결과는 `docs/RAILWAY_DEPLOYMENT.md`에 기록돼 있지만, 현재 가동 여부는 Railway에서 별도로 확인해야 한다. 실제 사용자 대상 운영 서비스로 전환하려면 보안, 정식 마이그레이션, 백업, 모니터링과 응답 평가 검증이 필요하다.
+현재 프로젝트는 백엔드·프런트·DB·OpenAI/RAG를 통합한 MVP다. 배포 주소와 2026-08-01 당시 검증 결과는 `docs/RAILWAY_DEPLOYMENT.md`에 기록돼 있지만, 현재 가동 여부는 Railway에서 별도로 확인해야 한다. 실제 사용자 대상 운영 서비스로 전환하려면 보안, 정식 마이그레이션, 백업, 모니터링과 응답 평가 검증이 필요하다.

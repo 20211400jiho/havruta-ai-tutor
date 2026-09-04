@@ -113,6 +113,9 @@ textarea {
   cursor: pointer;
 }
 
+.app-error-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.app-error-page button.secondary { color: #2563eb; background: #eaf1ff; }
+
 #root {
   width: 1440px;
   max-width: 100%;
@@ -202,6 +205,18 @@ code {
   color: var(--text-primary);
   background: var(--surface-bg) !important;
   border-color: var(--border-color) !important;
+}
+
+:root[data-theme="dark"] .collaborative-panel,
+:root[data-theme="dark"] .discussion-feedback,
+:root[data-theme="dark"] .evidence-panel {
+  color: var(--text-primary);
+  background: var(--surface-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+:root[data-theme="dark"] .note-section h2 {
+  color: var(--text-primary);
 }
 
 :root[data-theme="dark"] .hello,

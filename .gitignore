@@ -4,7 +4,7 @@ __pycache__/
 *.py[cod]
 .env
 
-# Rebuild with src/index_math_chroma.py
+# Large local/Railway volume data; verify with scripts/verify_chroma.py
 chroma_db/
 
 # Local editor and OS files

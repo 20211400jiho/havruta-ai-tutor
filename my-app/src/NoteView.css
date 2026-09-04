@@ -177,6 +177,11 @@
     font-size: 1.1rem;
 }
 
+.note-section { margin: 24px 0; }
+.note-section h2 { margin-bottom: 10px; font-size: 1.15rem; color: #1e293b; }
+.note-section ul { margin: 0; padding-left: 22px; }
+.note-section li { margin: 7px 0; }
+
 /* 기존 카드 디자인 유지 */
 .note-grid {
     display: grid;

@@ -15,7 +15,7 @@ export default function NoteView() {
   if (selectedNote) return (
     <main className="content note-page"><div className="notion-page-container"><button className="back-btn" onClick={() => setSelectedNote(null)}>← 목록으로 돌아가기</button><div className="notion-content">
       <span className="badge" style={{ backgroundColor: "#dbeafe" }}>{selectedNote.subject || "학습"}</span><h1>{selectedNote.title}</h1><p className="meta-info">{new Date(selectedNote.created_at).toLocaleDateString()}에 작성됨</p><div className="divider" />
-      <div className="page-body">{selectedNote.content.split("\n").map((line, index) => <p key={index}>{line || <br />}</p>)}</div>
+      <div className="page-body">{(selectedNote.sections || []).map((section) => <section key={section.title} className="note-section"><h2>{section.title}</h2><ul>{section.items.map((item, index) => <li key={`${section.title}-${index}`}>{item}</li>)}</ul></section>)}</div>
     </div></div></main>
   );
   return (
