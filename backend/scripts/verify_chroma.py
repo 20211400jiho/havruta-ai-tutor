@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from app.database.config import settings
+
 
 REQUIRED_SUBJECTS = {"국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"}
 
@@ -14,12 +16,12 @@ def main() -> None:
 
     import chromadb
 
-    chroma_dir = Path(os.getenv("CHROMA_DIR", "chroma_db")).expanduser().resolve()
+    chroma_dir = Path(settings.chroma_dir).resolve()
     sqlite_file = chroma_dir / "chroma.sqlite3"
     if not sqlite_file.is_file():
         raise SystemExit(f"Chroma preflight failed: {sqlite_file} not found")
 
-    collection_name = os.getenv("CHROMA_COLLECTION", "havruta_math_all")
+    collection_name = settings.chroma_collection
     collection = chromadb.PersistentClient(path=str(chroma_dir)).get_collection(collection_name)
     count = collection.count()
     if count < 300_000:

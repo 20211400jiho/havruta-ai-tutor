@@ -14,6 +14,8 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from app.database.config import settings
+
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 STANDARD_PATTERN = re.compile(r"\[([^\]]+)]\s*([^\[]+)")
@@ -279,8 +281,8 @@ def build_catalog(collection, batch_size: int = 2_000) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--chroma-dir", default=str(BASE_DIR / "chroma_db"))
-    parser.add_argument("--collection", default="havruta_math_all")
+    parser.add_argument("--chroma-dir", default=settings.chroma_dir)
+    parser.add_argument("--collection", default=settings.chroma_collection)
     parser.add_argument(
         "--output",
         default=str(BASE_DIR / "app" / "resources" / "curriculum_catalog.json"),

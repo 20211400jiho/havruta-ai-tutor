@@ -1,5 +1,7 @@
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.paths import BACKEND_DIR, resolve_chroma_dir
 
 
 class Settings(BaseSettings):
@@ -34,7 +36,14 @@ class Settings(BaseSettings):
     rag_min_score: float = 0.2
     redis_url: str | None = None
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    @field_validator("chroma_dir")
+    @classmethod
+    def normalize_chroma_dir(cls, value: str) -> str:
+        return str(resolve_chroma_dir(value))
 
     @property
     def database_url(self) -> str:

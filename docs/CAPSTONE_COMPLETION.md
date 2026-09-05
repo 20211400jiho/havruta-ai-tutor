@@ -90,7 +90,7 @@ sequenceDiagram
 
 ### 전체 스모크 테스트
 
-`scripts/smoke_test.py`는 다음을 한 번에 확인한다.
+`backend/scripts/smoke_test.py`는 다음을 한 번에 확인한다.
 
 1. 서버 준비 상태
 2. 학생 두 명 회원가입
@@ -119,7 +119,7 @@ HAVRUTA_API_URL=https://backend-production-98f3.up.railway.app python -m scripts
 
 ## 7. RAG 객관 평가
 
-`scripts/evaluate_rag.py`는 실제 카탈로그에서 과목별 성취기준을 고르게 선택하고, 과목·학교급·학년·단원으로 제한된 검색 결과 상위 K개에 목표 성취기준이 포함되는지 측정한다. 검색 순위는 임베딩 의미 유사도 65%와 질의 핵심어 포함률 35%를 결합한다.
+`backend/scripts/evaluate_rag.py`는 실제 카탈로그에서 과목별 성취기준을 고르게 선택하고, 과목·학교급·학년·단원으로 제한된 검색 결과 상위 K개에 목표 성취기준이 포함되는지 측정한다. 검색 순위는 임베딩 의미 유사도 65%와 질의 핵심어 포함률 35%를 결합한다.
 
 ```bash
 python -m scripts.evaluate_rag --per-subject 3 --top-k 3
@@ -140,11 +140,13 @@ python -m scripts.evaluate_rag --per-subject 3 --top-k 3
 
 ## 8. 자동 검증 명령
 
-```bash
-pip install -r requirements-dev.txt
-pytest -q
+저장소 루트에서 실행한다. 다른 절의 `python -m scripts.*` 명령은 가상환경을 활성화한 `backend/` 디렉터리 기준이다.
 
-cd my-app
+```bash
+.venv/bin/python -m pip install -r backend/requirements-dev.txt
+.venv/bin/python -m pytest backend -q
+
+cd frontend
 npm ci
 npm run lint
 npm run build
@@ -168,7 +170,7 @@ npm run build
 ## 10. 프로젝트 정리·최적화
 
 - 현재 실행 경로에서 사용되지 않던 `src/` 수학 전용 초기 실험 코드를 제거했다.
-- RAG 평가는 `scripts/evaluate_rag.py`로 통합했다.
+- RAG 평가는 `backend/scripts/evaluate_rag.py`로 통합했다.
 - 테스트 전용 `pytest`, `httpx`를 `requirements-dev.txt`로 분리해 운영 이미지 의존성을 줄였다.
 - 프런트에서 사용하지 않던 `react-router-dom` 의존성을 제거했다.
 - Python 캐시, pytest 캐시, 프런트 빌드 결과, macOS 메타파일을 제거했다.

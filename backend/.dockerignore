@@ -9,6 +9,5 @@ __pycache__
 .DS_Store
 docs
 tests
-my-app
 chroma_db
 *.db

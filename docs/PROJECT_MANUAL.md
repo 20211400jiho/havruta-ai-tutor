@@ -173,27 +173,34 @@ sequenceDiagram
 
 ## 6. 폴더 구조
 
+전체 탐색 안내와 파일별 요청 흐름은 [프로젝트 구조 설명서](PROJECT_STRUCTURE.md)를 참고한다.
+
 ```text
 .
-├── main.py                       # FastAPI 조립, lifespan, CORS
-├── requirements.txt              # 기본 백엔드 의존성
-├── requirements-ai.txt           # 선택적 Chroma/임베딩 의존성
-├── requirements-dev.txt          # 테스트 전용 의존성
-├── .env.example                  # 환경변수 예시
-├── README.md                     # 빠른 시작 문서
-├── app/
-│   ├── database/
-│   │   ├── base.py               # SQLAlchemy Base
-│   │   ├── config.py             # 환경변수 설정
-│   │   └── connection.py         # 엔진과 세션
-│   ├── models/                   # 16개 테이블 ORM
-│   ├── routers/                  # HTTP/WebSocket 엔드포인트
-│   ├── schemas/                  # 요청/응답 검증
-│   ├── services/                 # RAG, 튜터, 콘텐츠 생성
-│   ├── dependencies.py           # 현재 사용자 인증 의존성
-│   └── utils/security.py         # Argon2와 JWT
-├── data/                          # AITraining 수학 JSON 10건
-├── my-app/                        # 기존 front React 프로젝트
+├── backend/                       # Python/FastAPI 서버
+│   ├── main.py                    # FastAPI 조립, lifespan, CORS
+│   ├── app/
+│   │   ├── database/             # 환경변수, 엔진과 DB 세션
+│   │   ├── models/               # 16개 테이블 ORM
+│   │   ├── routers/              # HTTP/WebSocket 엔드포인트
+│   │   ├── schemas/              # 요청/응답 검증
+│   │   ├── services/             # RAG, 튜터, 콘텐츠 생성
+│   │   ├── resources/            # 교육과정 카탈로그
+│   │   ├── dependencies.py       # 현재 사용자 인증 의존성
+│   │   ├── paths.py              # 파일 경로 기준
+│   │   └── utils/security.py     # Argon2와 JWT
+│   ├── data/                     # AITraining 수학 JSON 10건
+│   ├── scripts/                  # 마이그레이션·RAG 점검·스모크 테스트
+│   ├── tests/                    # 격리 API·튜터 테스트
+│   ├── requirements.txt          # 기본 의존성
+│   ├── requirements-ai.txt       # Chroma/임베딩 의존성
+│   ├── requirements-dev.txt      # 테스트 의존성
+│   ├── .env.example              # 백엔드 환경변수 예시
+│   ├── Dockerfile
+│   └── railway.json
+├── frontend/                      # React/Vite 프런트엔드
+│   ├── Dockerfile
+│   ├── railway.json
 │   └── src/
 │       ├── api.js                 # 공통 API 클라이언트
 │       ├── AuthView.jsx           # 로그인/회원가입
@@ -203,11 +210,9 @@ sequenceDiagram
 │       ├── QuizView.jsx           # 복습 퀴즈
 │       ├── CalendarView.jsx       # 학습 캘린더
 │       └── MyPageView.jsx         # 사용자 통계
-├── scripts/
-│   ├── migrate_schema.py          # 기존 MySQL 스키마 보완
-│   ├── evaluate_rag.py            # 9개 과목 검색 정량 평가
-│   └── smoke_test.py              # 실제 서버/MySQL 전체 흐름 검증
-└── tests/                          # 격리 API 테스트
+├── docs/                          # 공통 기획·설계·배포 설명서
+├── chroma_db/                     # 로컬 RAG 인덱스, Git 제외
+└── README.md                      # 빠른 시작
 ```
 
 ## 7. 데이터베이스 설계
@@ -423,7 +428,9 @@ Chroma와 다국어 E5 모델은 선택 의존성이다. 설치하고 `RAG_PROVI
 
 로컬 Chroma의 9개 과목 모두에서 2022 성취기준 연계 검색을 확인할 수 있다.
 
-`scripts/build_curriculum_catalog.py`는 Chroma 본문의 `성취기준2022`를 전수 집계해 `app/resources/curriculum_catalog.json`을 만든다. 프런트는 이 파일을 제공하는 `/rag/catalog` API로 학교급·학년·단원 선택지를 구성한다. `공국`, `공수` 같은 교육과정 코드 약어는 화면에 표시하지 않고 API에 `unit_code`로 전달한다. 서버는 과목·학교급·학년·단원 조합을 카탈로그로 검증하고, Chroma 메타데이터와 본문 단원 코드를 함께 필터링한다. 상위 후보는 의미 유사도 65%와 어휘 포함률 35%로 재정렬한다.
+`backend/scripts/build_curriculum_catalog.py`는 Chroma 본문의 `성취기준2022`를 전수 집계해 `backend/app/resources/curriculum_catalog.json`을 만든다. 프런트는 이 파일을 제공하는 `/rag/catalog` API로 학교급·학년·단원 선택지를 구성한다. `공국`, `공수` 같은 교육과정 코드 약어는 화면에 표시하지 않고 API에 `unit_code`로 전달한다. 서버는 과목·학교급·학년·단원 조합을 카탈로그로 검증하고, Chroma 메타데이터와 본문 단원 코드를 함께 필터링한다. 상위 후보는 의미 유사도 65%와 어휘 포함률 35%로 재정렬한다.
+
+아래 명령은 가상환경을 활성화한 `backend/` 디렉터리에서 실행한다.
 
 ```bash
 pip install -r requirements-ai.txt
@@ -621,14 +628,17 @@ GRANT ALL PRIVILEGES ON havruta_ai_tutor.*
 
 ### 12.3 백엔드 설치
 
+저장소 루트에서 시작한다. 이후 Python 실행·설치 명령은 `backend/` 기준이다.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+cd backend
 pip install -r requirements.txt
-cp .env.example .env
+test -f .env || cp .env.example .env
 ```
 
-`.env`에 실제 DB 비밀번호와 JWT 비밀키를 입력한다.
+`backend/.env`에 실제 DB 비밀번호와 JWT 비밀키를 입력한다. 기존 설정 파일이 있으면 복사하지 않는다.
 
 ### 12.4 기존 DB 마이그레이션
 
@@ -664,8 +674,10 @@ uvicorn main:app --reload --reload-dir app
 
 ### 12.6 프런트 실행
 
+새 터미널에서 저장소 루트를 기준으로 실행한다.
+
 ```bash
-cd my-app
+cd frontend
 npm install
 npm run dev -- --host 127.0.0.1
 ```
@@ -710,13 +722,15 @@ VITE_API_URL=http://127.0.0.1:8000
 
 ## 14. 테스트와 검증
 
+백엔드 명령은 가상환경을 활성화한 `backend/`에서, 프런트 명령은 별도 터미널의 저장소 루트에서 시작한다.
+
 ### 14.1 백엔드 테스트
 
 ```bash
 pytest -q
 ```
 
-현재 9개 테스트가 다음을 검증한다.
+자동 테스트가 다음 기능을 검증한다. 최신 검증 결과는 `CAPSTONE_COMPLETION.md`와 구조 설명서를 참고한다.
 
 1. 상태 API
 2. 회원가입 → 방 생성 → 세션 → 답변 → 종료 → 노트 → 통계
@@ -733,7 +747,7 @@ pytest -q
 ### 14.2 프런트 검증
 
 ```bash
-cd my-app
+cd frontend
 npm run lint
 npm run build
 ```

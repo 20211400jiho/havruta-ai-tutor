@@ -1,5 +1,7 @@
 # 통합 설계 결정 기록
 
+소스는 `frontend/`와 `backend/`로 분리하고 각 서비스에 Dockerfile과 Railway 설정을 둔다. 폴더·파일별 역할은 [프로젝트 구조 설명서](PROJECT_STRUCTURE.md)를 참고한다.
+
 ## 브랜치 통합
 
 - `origin/main`: 회원, 학습방, WebSocket 기능을 제공했지만 SQLite와 별도 모델 계층을 사용했다.
