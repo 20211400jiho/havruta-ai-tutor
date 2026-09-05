@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.chat import ChatSession
 from app.models.study_content import Quiz, QuizQuestion, StudyNote
-from app.services.rag_service import search
+from app.rag.retriever import search
 
 
 class QuizSourceNotFoundError(ValueError):

@@ -1,7 +1,7 @@
 from app.database.config import settings
-from app.services import tutor_service
-from app.services.rag_service import SearchResult
-from app.services import rag_service
+from app.rag import tutor as tutor_service
+from app.rag.retriever import SearchResult
+from app.rag import retriever as rag_service
 
 
 def test_openai_generation_uses_configured_model(monkeypatch):

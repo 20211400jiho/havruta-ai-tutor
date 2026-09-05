@@ -5,7 +5,7 @@ from openai import OpenAI, OpenAIError
 from sqlalchemy.orm import Session
 
 from app.database.config import settings
-from app.services.rag_service import SearchResult, search, tokenize
+from app.rag.retriever import SearchResult, search, tokenize
 
 
 logger = logging.getLogger(__name__)

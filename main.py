@@ -14,7 +14,7 @@ from app.routers.quizzes import router as quizzes_router
 from app.routers.room import router as room_router
 from app.routers.root import router as root_router
 from app.routers.sessions import router as sessions_router
-from app.services.rag_service import index_local_documents
+from app.rag.retriever import index_local_documents
 from app.services.connection_manager import manager
 
 

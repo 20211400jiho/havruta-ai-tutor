@@ -1,7 +1,7 @@
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.paths import BACKEND_DIR, resolve_chroma_dir
+from app.paths import PROJECT_DIR, resolve_chroma_dir
 
 
 class Settings(BaseSettings):
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     redis_url: str | None = None
 
     model_config = SettingsConfigDict(
-        env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=PROJECT_DIR / ".env", env_file_encoding="utf-8", extra="ignore"
     )
 
     @field_validator("chroma_dir")

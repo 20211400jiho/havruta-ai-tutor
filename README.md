@@ -1,8 +1,8 @@
 # Havruta AI Tutor
 
-> 전체 기획·구현·운영 설명서는 [`docs/PROJECT_MANUAL.md`](docs/PROJECT_MANUAL.md)를 참고하세요.
+> 구조와 RAG 처리 흐름은 [프로젝트 구조 안내](docs/PROJECT_STRUCTURE.md)를 참고하세요.
 
-코드는 [`frontend/`](frontend/)와 [`backend/`](backend/)로 나뉩니다. 폴더별 역할과 요청 흐름은 [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)에 정리했습니다.
+> 전체 기획·구현·운영 설명서는 [`docs/PROJECT_MANUAL.md`](docs/PROJECT_MANUAL.md)를 참고하세요.
 
 고등학생이 질문·설명·피드백을 반복하며 학습하는 하브루타 튜터 MVP입니다. 백엔드, AITraining 자료 처리 코드, React 프런트엔드를 현재 `main` 코드에 통합했습니다.
 
@@ -66,7 +66,7 @@ flowchart LR
 
 ## 현재 데이터 범위
 
-- Git에 포함된 원본 RAG 자료는 `backend/data/`의 고1 수학 JSON 10건입니다.
+- Git에 포함된 원본 RAG 자료는 `data/`의 고1 수학 JSON 10건입니다.
 - `chroma_db/`는 대용량 인덱스라 Git과 Docker 이미지에서 제외됩니다. 로컬에서는 프로젝트의 인덱스를 사용하고, Railway에서는 백엔드 영속 볼륨의 `/data/chroma_db/chroma_db`를 사용합니다.
 - 국어·영어·수학·사회·사회문화·과학·도덕·기술가정·정보 9개 과목에서 2022 성취기준 연계 검색을 검증했습니다.
 - 학습과 퀴즈의 주제는 자유 입력하지 않습니다. `학교급 → 학년 → 단원`을 선택하며, 내부 단원 코드로 해당 단원의 RAG 자료만 검색합니다. 교육과정 코드 약어는 사용자 화면에 표시하지 않습니다.
@@ -94,7 +94,6 @@ GRANT ALL PRIVILEGES ON havruta_ai_tutor.* TO 'havruta_app'@'localhost';
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-cd backend
 pip install -r requirements.txt
 test -f .env || cp .env.example .env
 python -m scripts.migrate_schema
@@ -108,10 +107,8 @@ uvicorn main:app --reload --reload-dir app
 
 ### 3. 프런트엔드
 
-새 터미널에서 저장소 루트를 기준으로 실행합니다.
-
 ```bash
-cd frontend
+cd web
 npm install
 npm run dev -- --host 127.0.0.1
 ```
@@ -179,13 +176,11 @@ npm run dev -- --host 127.0.0.1
 ## 테스트
 
 ```bash
-# 저장소 루트에서 실행
-.venv/bin/python -m pip install -r backend/requirements-dev.txt
-.venv/bin/python -m pytest backend -q
-npm --prefix frontend run lint
-npm --prefix frontend run build
-(cd backend && ../.venv/bin/python -m scripts.smoke_test)
-(cd backend && ../.venv/bin/python -m scripts.evaluate_rag --per-subject 3 --top-k 3)
+pip install -r requirements-dev.txt
+pytest -q
+npm --prefix web run build
+python -m scripts.smoke_test
+python -m scripts.evaluate_rag --per-subject 3 --top-k 3
 ```
 
 - `pytest`: 인메모리 SQLite에서 API 흐름을 격리 검증합니다.
@@ -195,8 +190,6 @@ npm --prefix frontend run build
 
 기본 앱에는 대형 AI 패키지가 필요하지 않습니다. Chroma와 multilingual-e5 임베딩 실험을 실행할 때만 다음을 설치합니다.
 
-가상환경을 활성화한 뒤 `backend/` 디렉터리에서 실행합니다.
-
 ```bash
 pip install -r requirements-ai.txt
 python -m scripts.verify_chroma
@@ -205,7 +198,7 @@ python -m scripts.evaluate_rag --per-subject 3 --top-k 3
 
 `intfloat/multilingual-e5-base` 모델은 최초 실행 시 별도 다운로드되므로 네트워크와 수백 MB 이상의 여유 공간이 필요할 수 있습니다.
 
-로컬 실행 시 `backend/.env`에 새 API 키를 입력합니다. `CHROMA_DIR`의 상대 경로는 저장소 루트를 기준으로 해석하고, Railway 볼륨의 절대 경로는 그대로 사용합니다.
+로컬 실행 시 프로젝트 루트의 `.env`에 새 API 키를 입력합니다.
 
 ```dotenv
 OPENAI_API_KEY=새로_발급한_API_키
@@ -218,24 +211,29 @@ Railway에서는 백엔드 서비스의 `Variables`에 같은 변수들을 추�
 
 ```text
 havruta-ai-tutor/
-├── frontend/             # React/Vite 화면, API 클라이언트, Nginx 배포
-│   ├── src/              # 학습·채팅·노트·퀴즈 화면과 스타일
-│   ├── public/           # 정적 파일
-│   ├── Dockerfile
-│   └── railway.json
-├── backend/              # Python/FastAPI 서버
-│   ├── app/              # routers → services → models/database
-│   ├── data/             # Git에 포함된 수학 RAG JSON 10건
-│   ├── scripts/          # DB 마이그레이션·RAG 점검·평가
-│   ├── tests/            # API·튜터 자동 테스트
-│   ├── main.py           # 서버 진입점
-│   ├── .env.example      # 서버 환경변수 예시
-│   ├── requirements.txt  # 의존성 (AI·개발용은 별도 파일)
-│   ├── Dockerfile
-│   └── railway.json
-├── docs/                 # 구조·설계·사용·배포 설명서
-├── chroma_db/            # 로컬 대용량 RAG 인덱스 (Git 제외)
-└── README.md             # 프로젝트 시작점
+├── app/                       # 애플리케이션
+│   ├── rag/                   # RAG 핵심
+│   │   ├── retriever.py        # 자료 인덱싱·임베딩·벡터/어휘 검색
+│   │   ├── tutor.py            # 프롬프트·대화 흐름·OpenAI 응답
+│   │   └── curriculum.py       # 과목·학년·단원 카탈로그
+│   ├── resources/             # 교육과정 카탈로그 JSON
+│   ├── routers/               # 인증·학습·RAG·채팅 API
+│   ├── services/              # 노트·퀴즈·공동 학습·실시간 연결
+│   ├── models/                # DB 테이블
+│   ├── schemas/               # 요청 데이터 검증
+│   ├── database/              # 환경변수·DB 연결
+│   └── utils/                 # JWT·비밀번호 처리
+├── data/                      # RAG 원본 샘플
+├── chroma_db/                 # 기존 벡터 인덱스 (Git 제외)
+├── scripts/                   # 카탈로그 생성·마이그레이션·RAG 평가
+├── tests/                     # 자동 테스트
+├── web/                       # React 화면·API 클라이언트
+├── docs/                      # 설계·사용·배포 문서
+├── main.py                    # FastAPI 시작점
+├── .env.example               # 환경변수 예시
+├── requirements*.txt          # 기본·AI·테스트 의존성
+├── Dockerfile                 # 서버 이미지
+└── railway.json               # 서버 배포 설정
 ```
 
 졸업작품 보완 내용, 시연 순서와 실제 RAG 측정 결과는 [`docs/CAPSTONE_COMPLETION.md`](docs/CAPSTONE_COMPLETION.md)에 정리되어 있습니다.

@@ -6,7 +6,7 @@ from app.database.config import settings
 from app.database.connection import get_db
 from app.models.document import DocumentChunk
 from app.services.connection_manager import manager
-from app.services.rag_service import _chroma_collection
+from app.rag.retriever import _chroma_collection
 
 # 기본 API를 관리하는 Router
 router = APIRouter(

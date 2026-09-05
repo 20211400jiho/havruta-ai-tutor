@@ -12,7 +12,7 @@ from app.models.user import User
 from app.schemas.chat import CollaborativeFeedbackRequest
 from app.services.collaborative_service import analyze_room_discussion
 from app.services.connection_manager import manager
-from app.services.curriculum_catalog import is_valid_curriculum_selection
+from app.rag.curriculum import is_valid_curriculum_selection
 from app.services.rate_limit_service import AIUsageLimitError, check_and_record_ai_usage
 from app.utils.security import verify_access_token
 

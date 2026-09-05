@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.database.config import settings
 from app.models.chat import RoomChatMessage
 from app.models.learning import LearningRoom
-from app.services.rag_service import search, tokenize
-from app.services.tutor_service import generate_with_provider, source_summary
+from app.rag.retriever import search, tokenize
+from app.rag.tutor import generate_with_provider, source_summary
 
 
 def analyze_room_discussion(

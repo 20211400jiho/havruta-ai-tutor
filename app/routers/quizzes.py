@@ -7,7 +7,7 @@ from app.models.study_content import Quiz, QuizAttempt
 from app.models.user import User
 from app.schemas.study_content import QuizGenerateRequest, QuizSubmitRequest
 from app.services.content_service import QuizSourceNotFoundError, generate_quiz
-from app.services.curriculum_catalog import is_valid_curriculum_selection
+from app.rag.curriculum import is_valid_curriculum_selection
 
 
 router = APIRouter(prefix="/quizzes", tags=["복습 퀴즈"])

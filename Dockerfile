@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PORT=8000
 
-WORKDIR /app/backend
+WORKDIR /app
 
 COPY requirements.txt requirements-ai.txt ./
 # Railway는 CPU 서비스이므로 CUDA 런타임(수 GB)을 설치하지 않는다.

@@ -7,7 +7,7 @@ from pathlib import Path
 from time import perf_counter
 
 from app.database.config import settings
-from app.services.rag_service import search_chroma
+from app.rag.retriever import search_chroma
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]

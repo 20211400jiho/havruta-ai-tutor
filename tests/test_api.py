@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from app.database.config import settings
-from app.services import rag_service
+from app.rag import retriever as rag_service
 
 
 def test_health(client):

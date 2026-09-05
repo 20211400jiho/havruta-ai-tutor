@@ -4,7 +4,7 @@ FastAPI 백엔드와 연결되는 React/Vite 프런트엔드입니다. 화면에
 
 ## 실행
 
-저장소 루트에서 `cd frontend`로 이동한 뒤 실행합니다.
+저장소 루트에서 `cd web`로 이동한 뒤 실행합니다.
 
 ```bash
 npm install
@@ -42,4 +42,4 @@ npm run build
 | `src/*.css`, `src/assets/`, `public/` | 스타일·이미지·정적 파일 |
 | `Dockerfile`, `nginx.conf.template`, `railway.json` | 빌드와 배포 |
 
-AI 개인 대화는 REST, 학습방의 사용자 간 채팅은 WebSocket을 사용합니다. OpenAI 키와 DB 접속 정보는 백엔드에서만 관리합니다. 독립 Docker 빌드는 저장소 루트에서 `docker build -t havruta-frontend ./frontend`로 실행합니다.
+AI 개인 대화는 REST, 학습방의 사용자 간 채팅은 WebSocket을 사용합니다. OpenAI 키와 DB 접속 정보는 백엔드에서만 관리합니다. 독립 Docker 빌드는 저장소 루트에서 `docker build -t havruta-web ./web`로 실행합니다.

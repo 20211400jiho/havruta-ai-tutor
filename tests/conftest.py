@@ -8,7 +8,7 @@ import app.models  # noqa: F401
 from app.database.base import Base
 from app.database.config import settings
 from app.database.connection import get_db
-from app.services.rag_service import index_local_documents
+from app.rag.retriever import index_local_documents
 from main import app
 
 

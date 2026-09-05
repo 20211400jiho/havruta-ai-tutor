@@ -1,5 +1,7 @@
 # Railway 배포 설명서
 
+> RAG 중심 구조의 배포 경로는 Backend Root Directory `/`, Config as Code `/railway.json`, Frontend Root Directory `/web`, Config as Code `/web/railway.json`이다. 이전 커밋 `1c4cf82`의 `/backend`, `/frontend` 구조에서 전환할 때 두 서비스의 경로를 함께 변경한다.
+
 이 문서는 현재 `main` 브랜치의 통합 프로젝트를 Railway에 배포하는 절차다. 최종 구성은 네 서비스다.
 
 ## 기록된 배포 스냅샷
@@ -30,20 +32,14 @@ flowchart LR
 
 | 파일 | 역할 |
 |---|---|
-| `/backend/Dockerfile` | Python 3.13 기반 FastAPI 이미지 |
-| `/backend/railway.json` | 백엔드 빌드, DB 사전 마이그레이션, 상태 확인, 재시작 정책 |
-| `/backend/.dockerignore` | 백엔드 이미지에서 로컬 산출물·환경변수 제외 |
-| `/frontend/Dockerfile` | React 빌드 후 Nginx로 제공하는 프런트 이미지 |
-| `/frontend/nginx.conf.template` | Railway `PORT` 수신 및 SPA 경로 처리 |
-| `/frontend/railway.json` | 프런트 상태 확인과 재시작 정책 |
+| `/Dockerfile` | Python 3.13 기반 FastAPI 이미지 |
+| `/railway.json` | 백엔드 빌드, DB 사전 마이그레이션, 상태 확인, 재시작 정책 |
+| `/.dockerignore` | 백엔드 이미지에서 로컬·프런트 산출물 제외 |
+| `/web/Dockerfile` | React 빌드 후 Nginx로 제공하는 프런트 이미지 |
+| `/web/nginx.conf.template` | Railway `PORT` 수신 및 SPA 경로 처리 |
+| `/web/railway.json` | 프런트 상태 확인과 재시작 정책 |
 
 백엔드 배포 전 `python -m scripts.migrate_schema`가 실행된다. 빈 MySQL에는 전체 테이블을 만들고, 기존 DB에는 통합 과정에서 필요한 컬럼과 유니크 제약을 멱등 적용한다.
-
-### 기존 배포에서 폴더 분리 버전으로 전환
-
-기존 Backend 루트 `/`, Frontend 루트 `/my-app` 설정은 이 버전의 폴더 구조와 다르다. 이 변경을 배포할 때 **두 서비스의 Root Directory와 Config as Code 경로를 아래 표대로 함께 변경**한다. 저장소 파일 수정만으로 Railway 대시보드의 서비스 경로가 바뀌지는 않는다. 자동 배포가 켜져 있다면 해당 커밋과 설정 변경을 함께 반영할 수 있도록 자동 배포를 잠시 중지하고, 경로와 커밋을 맞춘 뒤 배포한다.
-
-MySQL·Redis 연결 변수, 공개 도메인, 기존 볼륨 마운트와 `CHROMA_DIR` 절대 경로는 유지한다. Docker 빌드 컨텍스트는 각 서비스 폴더이며, 백엔드 컨테이너 작업 디렉터리는 `/app/backend`이다.
 
 ## 2. Railway 프로젝트 생성
 
@@ -62,8 +58,8 @@ MySQL과 Redis는 외부 공개 TCP 주소가 아니라 같은 Railway 프로젝
 | 설정 | 값 |
 |---|---|
 | Branch | `main` |
-| Root Directory | `/backend` |
-| Config as Code | `/backend/railway.json` |
+| Root Directory | `/` |
+| Config as Code | `/railway.json` |
 
 `Backend > Variables`에 다음을 넣는다. `JWT_SECRET_KEY`는 예시를 그대로 사용하지 않는다.
 
@@ -102,8 +98,8 @@ openssl rand -hex 32
 | 설정 | 값 |
 |---|---|
 | Branch | `main` |
-| Root Directory | `/frontend` |
-| Config as Code | `/frontend/railway.json` |
+| Root Directory | `/web` |
+| Config as Code | `/web/railway.json` |
 
 `Frontend > Variables`에는 Backend의 실제 공개 도메인을 넣는다. 이 값은 React 번들 빌드 시 포함되므로 변경 후 반드시 재배포해야 한다.
 
@@ -165,7 +161,7 @@ curl https://프런트_공개_도메인/health
 
 ## 8. GitHub 자동 배포
 
-Backend와 Frontend가 GitHub `main` 브랜치에 연결되어 있으면 해당 브랜치의 새 커밋으로 배포를 자동 트리거할 수 있다. 백엔드는 `/backend/railway.json`, 프런트는 `/frontend/railway.json`의 watch pattern을 사용해 관련 코드 변경만 재배포한다.
+Backend와 Frontend가 GitHub `main` 브랜치에 연결되어 있으면 해당 브랜치의 새 커밋으로 배포를 자동 트리거할 수 있다. 백엔드는 `/railway.json`, 프런트는 `/web/railway.json`의 watch pattern을 사용해 관련 코드 변경만 재배포한다.
 
 운영에서는 직접 `main`에 푸시하기보다 기능 브랜치와 Pull Request, 테스트 통과 후 병합하는 흐름을 권장한다.
 

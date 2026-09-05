@@ -6,8 +6,8 @@ from app.database.connection import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.chat import RagSearchRequest
-from app.services.curriculum_catalog import get_subject_catalog, is_valid_curriculum_selection
-from app.services.rag_service import has_subject_documents, index_local_documents, search
+from app.rag.curriculum import get_subject_catalog, is_valid_curriculum_selection
+from app.rag.retriever import has_subject_documents, index_local_documents, search
 
 
 router = APIRouter(prefix="/rag", tags=["RAG"])

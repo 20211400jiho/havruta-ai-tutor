@@ -15,9 +15,9 @@ from app.models.user import User
 from app.schemas.chat import MessageCreateRequest, SessionCreateRequest
 from app.services.content_service import create_note_for_session
 from app.database.config import settings
-from app.services.curriculum_catalog import is_valid_curriculum_selection
+from app.rag.curriculum import is_valid_curriculum_selection
 from app.services.rate_limit_service import AIUsageLimitError, check_and_record_ai_usage
-from app.services.tutor_service import conversation_stage, initial_question, source_summary, tutor_reply
+from app.rag.tutor import conversation_stage, initial_question, source_summary, tutor_reply
 
 
 router = APIRouter(prefix="/sessions", tags=["AI 학습 세션"])
