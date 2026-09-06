@@ -43,11 +43,13 @@
     repeat(2, 1fr); gap: 20px; 
 }
 
-.note-card { background: white; 
+.note-card { background: white;
     padding: 25px; border-radius: 16px; 
     border: 1px solid #e2e8f0; 
     position: relative; 
 }
+
+.note-open { display: block; width: 100%; padding: 0 0 18px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 
 .delete-btn { position: absolute; 
     top: 15px; 

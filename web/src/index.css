@@ -264,3 +264,8 @@ code {
   color: #f8fafc;
   background: #31549d;
 }
+
+.content-item-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.content-delete { padding: 9px 12px; border: 1px solid #fecaca; border-radius: 8px; background: #fee2e2; color: #991b1b; cursor: pointer; white-space: nowrap; }
+.content-delete:disabled, .note-open:disabled { opacity: .55; cursor: not-allowed; }
+:root[data-theme="dark"] .content-delete { background: #451a1a; color: #fecaca; border-color: #7f1d1d; }

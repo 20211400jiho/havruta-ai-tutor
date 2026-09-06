@@ -156,6 +156,7 @@ npm run dev -- --host 127.0.0.1
 | 로그인 | POST | `/auth/login` |
 | 내 정보 | GET | `/auth/me` |
 | 내 학습방 | GET/POST | `/rooms` |
+| 방장 학습방 삭제 | DELETE | `/rooms/{room_id}` |
 | 초대 코드 참여 | POST | `/rooms/join` |
 | 세션 시작 | POST | `/sessions` |
 | AI와 대화 | POST | `/sessions/{id}/messages` |
@@ -164,8 +165,10 @@ npm run dev -- --host 127.0.0.1
 | 과목별 단원 카탈로그 | GET | `/rag/catalog?subject=수학` |
 | 과목별 RAG 상태 | GET | `/rag/status?subject=수학` |
 | 정리노트 | GET | `/notes` |
+| 본인 정리노트 삭제 | DELETE | `/notes/{note_id}` |
 | 퀴즈 생성/목록 | POST/GET | `/quizzes` |
 | 퀴즈 채점 | POST | `/quizzes/{id}/submit` |
+| 본인 퀴즈 삭제 | DELETE | `/quizzes/{quiz_id}` |
 | 내 학습 통계 | GET | `/dashboard/me` |
 | 월별 실제 학습·노트 | GET | `/dashboard/calendar` |
 | 공동 하브루타 분석 | POST | `/chat/rooms/{room_id}/ai-feedback` |
@@ -174,6 +177,10 @@ npm run dev -- --host 127.0.0.1
 | 발표 준비 상태 | GET | `/health/ready` |
 
 ## 테스트
+
+스터디룸 목록에서 방장에게만 `방 삭제` 버튼이 표시됩니다. 확인 후 방을 종료 상태로 보관하며, 모든 참여자의 방 목록·신규 참여·그룹 채팅·새 학습 시작을 차단합니다. 개인 학습 기록과 정리노트는 유지됩니다.
+
+퀴즈와 정리노트는 목록·상세 화면에서 본인 항목만 확인 후 영구 삭제할 수 있습니다. 퀴즈 삭제 시 문제·응시 기록도 함께 삭제됩니다. 정리노트 삭제는 학습 대화·완료 기록에 영향을 주지 않습니다. 삭제 실패 시 오류를 표시하고 화면의 항목은 유지합니다.
 
 ```bash
 pip install -r requirements-dev.txt

@@ -134,6 +134,11 @@ async def websocket_chat(
     try:
         while True:
             raw_message = await websocket.receive_text()
+            # Start a fresh read transaction so room deletion is visible on MySQL too.
+            db.rollback()
+            if not has_room_access(db, room_id, user_id):
+                await websocket.close(code=4403, reason="학습방이 삭제되었거나 접근 권한이 없습니다.")
+                break
             try:
                 incoming = json.loads(raw_message)
                 content = str(incoming.get("content", "")).strip()

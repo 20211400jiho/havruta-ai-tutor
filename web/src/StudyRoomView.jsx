@@ -19,6 +19,7 @@ export default function StudyRoomView({ user }) {
   const [curriculumSelection, setCurriculumSelection] = useState(null);
   const [discussionFeedback, setDiscussionFeedback] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [deletingRoomId, setDeletingRoomId] = useState(null);
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -45,9 +46,19 @@ export default function StudyRoomView({ user }) {
 
       socket.onopen = () => socket.send(JSON.stringify({ type: "authenticate", token: getToken() }));
       socket.onmessage = (event) => {
+        if (cancelled) return;
         try {
           const payload = JSON.parse(event.data);
-          if (payload.type === "authenticated") {
+          if (payload.type === "room_deleted") {
+            cancelled = true;
+            socket.close();
+            setSelectedRoom(null);
+            setRooms((current) => current.filter((room) => room.id !== selectedRoom.id));
+            setMessages([]);
+            setMessageInput("");
+            setDiscussionFeedback(null);
+            setNotice("방장이 학습방을 삭제했습니다. 개인 학습 기록은 유지됩니다.");
+          } else if (payload.type === "authenticated") {
             setConnectionStatus("connected");
           } else if (payload.type === "message") {
             setMessages((current) => (
@@ -121,6 +132,25 @@ export default function StudyRoomView({ user }) {
     if (!content || socketRef.current?.readyState !== WebSocket.OPEN) return;
     socketRef.current.send(JSON.stringify({ content }));
     setMessageInput("");
+  };
+
+  const deleteRoom = async (room) => {
+    if (deletingRoomId !== null) return;
+    if (!window.confirm(`“${room.title}” 학습방을 삭제할까요?\n모든 참여자의 방 목록에서 사라지고 그룹 채팅이 종료됩니다. 개인 학습 기록과 정리노트는 유지됩니다.`)) return;
+    setDeletingRoomId(room.id);
+    setError("");
+    try {
+      const result = await api(`/rooms/${room.id}`, { method: "DELETE" });
+      setRooms((current) => current.filter((item) => item.id !== room.id));
+      if (selectedRoom?.id === room.id) {
+        setSelectedRoom(null);
+        setMessages([]);
+        setMessageInput("");
+        setDiscussionFeedback(null);
+      }
+      setNotice(result.message);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setDeletingRoomId(null); }
   };
 
   const analyzeDiscussion = async () => {
@@ -219,6 +249,7 @@ export default function StudyRoomView({ user }) {
             <div className="room-item-actions">
               <button onClick={() => navigator.clipboard.writeText(room.invite_code)}>{room.invite_code} 복사</button>
               <button className="enter-room" onClick={() => { setError(""); setNotice(""); setSelectedRoom(room); }}>채팅 입장</button>
+              {room.owner_id === user.id && <button className="delete-room" disabled={deletingRoomId !== null} onClick={() => deleteRoom(room)}>{deletingRoomId === room.id ? "삭제 중..." : "방 삭제"}</button>}
             </div>
           </article>
         ))}{!rooms.length && <p>아직 참여 중인 학습방이 없습니다.</p>}</section>

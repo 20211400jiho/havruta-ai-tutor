@@ -14,6 +14,7 @@ export default function QuizView() {
   const [subject, setSubject] = useState("수학");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const topic = curriculumSelection?.subject === subject ? curriculumSelection.topic : "";
   const load = () => api("/quizzes").then((data) => setQuizzes(data.quizzes)).catch((requestError) => setError(requestError.message));
   useEffect(() => { load(); }, []);
@@ -39,7 +40,7 @@ export default function QuizView() {
     finally { setLoading(false); }
   };
   const start = async (id) => {
-    setLoading(true); setResult(null);
+    setLoading(true); setResult(null); setError(""); setNotice("");
     try { const data = await api(`/quizzes/${id}`); setQuiz(data.quiz); setAnswers(Array(data.quiz.questions.length).fill(null)); }
     catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
@@ -52,8 +53,20 @@ export default function QuizView() {
     finally { setLoading(false); }
   };
 
+  const deleteQuiz = async (item) => {
+    if (loading || !window.confirm(`“${item.title}” 퀴즈를 삭제할까요?\n문제와 해당 퀴즈의 응시 기록이 함께 삭제되며 복구할 수 없습니다.`)) return;
+    setLoading(true); setError(""); setNotice("");
+    try {
+      const data = await api(`/quizzes/${item.id}`, { method: "DELETE" });
+      setQuizzes((current) => current.filter((entry) => entry.id !== item.id));
+      if (quiz?.id === item.id) { setQuiz(null); setAnswers([]); setResult(null); }
+      setNotice(data.message);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setLoading(false); }
+  };
+
   if (quiz) return (
-    <main className="content"><div className="quiz-container"><div className="quiz-header"><button className="btn-back" onClick={() => { setQuiz(null); setResult(null); }}>← 목록으로</button><h2>{quiz.title}</h2></div>
+    <main className="content"><div className="quiz-container"><div className="quiz-header"><button className="btn-back" disabled={loading} onClick={() => { setQuiz(null); setResult(null); }}>← 목록으로</button><h2>{quiz.title}</h2><button className="content-delete" disabled={loading} onClick={() => deleteQuiz(quiz)}>퀴즈 삭제</button></div>
       {quiz.questions.map((question, questionIndex) => <section key={question.id} className="quiz-question-block"><h3>Q{questionIndex + 1}. {question.question}</h3><div className="quiz-options">{question.options.map((option, optionIndex) => {
         const resultItem = result?.results?.[questionIndex];
         const optionClass = resultItem && optionIndex === resultItem.correct_index ? "correct" : resultItem && answers[questionIndex] === optionIndex ? "incorrect" : "";
@@ -64,7 +77,7 @@ export default function QuizView() {
   );
   return (
     <main className="content"><div className="quiz-list-header"><div><h2 className="quiz-main-title">2022 교육과정 RAG 퀴즈</h2><p className="quiz-main-sub">과목과 단원을 고르면 해당 단원의 RAG 자료에서만 문제를 생성합니다.</p></div><div className="quiz-subject-action"><label>교과목<select aria-label="퀴즈 과목" value={subject} onChange={(e) => { setSubject(e.target.value); setCurriculumSelection(null); }}>{SUBJECT_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label><button className="btn-generate-quiz" onClick={generate} disabled={loading || !topic}>{loading ? "생성 중..." : "선택한 단원으로 새 퀴즈"}</button></div></div><CurriculumSelector subject={subject} onSelectionChange={setCurriculumSelection} disabled={loading} compact />
-      {error && <p className="study-error">{error}</p>}<div className="quiz-grid">{quizzes.map((item) => <div key={item.id} className="quiz-history-card"><div className="card-top"><span className="quiz-card-date">{new Date(item.created_at).toLocaleDateString()}</span><span className="quiz-card-count">{item.total_questions}문항</span></div><h3 className="quiz-card-title">{item.title}</h3><p>최고 점수: {item.best_score ?? "미응시"}</p><button className="btn-quiz-start" onClick={() => start(item.id)}>풀기 ➔</button></div>)}</div>
+      {error && <p className="study-error">{error}</p>}{notice && <p role="status">{notice}</p>}<div className="quiz-grid">{quizzes.map((item) => <div key={item.id} className="quiz-history-card"><div className="card-top"><span className="quiz-card-date">{new Date(item.created_at).toLocaleDateString()}</span><span className="quiz-card-count">{item.total_questions}문항</span></div><h3 className="quiz-card-title">{item.title}</h3><p>최고 점수: {item.best_score ?? "미응시"}</p><div className="content-item-actions"><button className="btn-quiz-start" disabled={loading} onClick={() => start(item.id)}>풀기 ➔</button><button className="content-delete" disabled={loading} aria-label={`${item.title} 퀴즈 삭제`} onClick={() => deleteQuiz(item)}>퀴즈 삭제</button></div></div>)}</div>
       {!quizzes.length && !error && <p>새 퀴즈를 생성해보세요.</p>}
     </main>
   );

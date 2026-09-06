@@ -10,6 +10,7 @@ from app.dependencies import get_current_user
 from app.models.learning import LearningRoom, RoomMember
 from app.models.user import User
 from app.schemas.room import RoomCreateRequest, RoomJoinRequest
+from app.services.connection_manager import manager
 
 
 router = APIRouter(prefix="/rooms", tags=["학습방"])
@@ -44,6 +45,7 @@ def list_rooms(user: User = Depends(get_current_user), db: Session = Depends(get
         db.query(LearningRoom)
         .outerjoin(RoomMember)
         .filter(or_(LearningRoom.owner_id == user.id, RoomMember.user_id == user.id))
+        .filter(LearningRoom.status == "active")
         .order_by(LearningRoom.created_at.desc())
         .distinct()
         .all()
@@ -102,7 +104,7 @@ def room_detail(
     db: Session = Depends(get_db),
 ) -> dict:
     room = db.get(LearningRoom, room_id)
-    if room is None:
+    if room is None or room.status != "active":
         raise HTTPException(status_code=404, detail="학습방을 찾을 수 없습니다.")
     is_member = db.query(RoomMember).filter_by(room_id=room_id, user_id=user.id).first()
     if room.owner_id != user.id and not is_member:
@@ -113,3 +115,21 @@ def room_detail(
         for member in room.members
     ]
     return {"room": result}
+
+
+@router.delete("/{room_id}")
+async def delete_room(
+    room_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    room = db.get(LearningRoom, room_id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="학습방을 찾을 수 없습니다.")
+    if room.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="방장만 학습방을 삭제할 수 있습니다.")
+    # Preserve personal learning records and their foreign-key relationships.
+    room.status = "closed"
+    db.commit()
+    await manager.broadcast(room_id, {"type": "room_deleted", "room_id": room_id})
+    return {"message": "학습방이 삭제되었습니다. 개인 학습 기록은 유지됩니다."}

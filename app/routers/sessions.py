@@ -98,6 +98,8 @@ def create_session(
     db: Session = Depends(get_db),
 ) -> dict:
     room = ensure_room_access(db, payload.room_id, user.id)
+    if room.status != "active":
+        raise HTTPException(status_code=409, detail="삭제된 학습방에서는 새 학습을 시작할 수 없습니다.")
     school_level, grade = resolve_learning_scope(room, payload.school_level, payload.grade)
     if payload.unit_code and not is_valid_curriculum_selection(
         room.subject or "일반",

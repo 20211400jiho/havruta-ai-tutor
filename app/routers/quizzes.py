@@ -111,3 +111,16 @@ def submit_quiz(
             for index, question in enumerate(quiz.questions)
         ],
     }
+
+
+@router.delete("/{quiz_id}")
+def delete_quiz(quiz_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    quiz = db.get(Quiz, quiz_id)
+    if quiz is None:
+        raise HTTPException(status_code=404, detail="퀴즈를 찾을 수 없습니다.")
+    if quiz.user_id != user.id:
+        raise HTTPException(status_code=403, detail="본인의 퀴즈만 삭제할 수 있습니다.")
+    # ORM cascades remove the quiz's questions and attempts in the same transaction.
+    db.delete(quiz)
+    db.commit()
+    return {"message": "퀴즈와 해당 퀴즈의 응시 기록이 삭제되었습니다."}

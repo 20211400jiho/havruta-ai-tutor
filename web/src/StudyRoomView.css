@@ -21,7 +21,9 @@
 .room-item { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 0; border-bottom: 1px solid #e5e7eb; }
 .room-item p { margin: 6px 0 0; color: #64748b; }
 .room-item button { border: 0; border-radius: 9px; padding: 9px 12px; color: #31549d; background: #edf4ff; cursor: pointer; }
-.room-item-actions { display: flex; gap: 8px; }
+.room-item-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.room-item-actions .delete-room { color: #b91c1c; background: #fee2e2; }
+.room-item-actions button:disabled { opacity: .55; cursor: not-allowed; }
 .room-item-actions .enter-room { color: white; background: #5d87ff; }
 @media (max-width: 700px) { .room-actions { grid-template-columns: 1fr; } }
 

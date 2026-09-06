@@ -52,3 +52,15 @@ def get_note(note_id: int, user: User = Depends(get_current_user), db: Session =
     if note.user_id != user.id:
         raise HTTPException(status_code=403, detail="정리노트 접근 권한이 없습니다.")
     return {"note": note_dict(note)}
+
+
+@router.delete("/{note_id}")
+def delete_note(note_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    note = db.get(StudyNote, note_id)
+    if note is None:
+        raise HTTPException(status_code=404, detail="정리노트를 찾을 수 없습니다.")
+    if note.user_id != user.id:
+        raise HTTPException(status_code=403, detail="본인의 정리노트만 삭제할 수 있습니다.")
+    db.delete(note)
+    db.commit()
+    return {"message": "정리노트가 삭제되었습니다. 학습 대화와 기록은 유지됩니다."}
