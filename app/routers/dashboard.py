@@ -31,7 +31,7 @@ def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_
     review_topics = list(dict.fromkeys(
         record.session.topic
         for record in records
-        if record.session.topic and (record.ai_score_avg is None or record.ai_score_avg < 60)
+        if record.session.topic and record.ai_score_avg is not None and record.ai_score_avg < 60
     ))[:5]
     strong_topics = list(dict.fromkeys(
         record.session.topic
@@ -42,6 +42,7 @@ def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_
         "우수" if average_value is not None and average_value >= 80
         else "충분함" if average_value is not None and average_value >= 60
         else "보완 필요" if average_value is not None
+        else "미확인" if records
         else "학습 전"
     )
     return {
@@ -112,7 +113,7 @@ def calendar_records(
             "session_id": record.session_id,
             "topic": record.session.topic,
             "unit_code": record.session.unit_code,
-            "explanation_level": "우수" if record.ai_score_avg is not None and record.ai_score_avg >= 80 else "충분함" if record.ai_score_avg is not None and record.ai_score_avg >= 60 else "보완 필요",
+            "explanation_level": "미확인" if record.ai_score_avg is None else "우수" if record.ai_score_avg >= 80 else "충분함" if record.ai_score_avg >= 60 else "보완 필요",
             "average_score": record.ai_score_avg,
         })
     for note in notes:

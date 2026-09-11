@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.rag.dialogue import DialogueState, STAGES, TutorTurn, apply_assessment, learning_report
 
 
@@ -51,3 +53,22 @@ def test_other_users_cannot_read_learning_report(client, auth_headers):
                           json={"room_id": room["id"], "topic": "수학"}).json()["session"]
     other = client.post("/auth/signup", json={"email": "report-other@example.com", "password": "strong-password", "name": "다른 학생"}).json()
     assert client.get(f"/sessions/{session['id']}", headers={"Authorization": f"Bearer {other['access_token']}"}).status_code == 403
+
+
+def test_unscored_session_is_not_a_weak_topic_or_calendar_failure(client, auth_headers):
+    initial = client.get("/dashboard/me", headers=auth_headers).json()
+    assert initial["summary"]["explanation_level"] == "학습 전"
+    room = client.post("/rooms", headers=auth_headers, json={"title": "미확인 평가", "subject": "수학"}).json()["room"]
+    session = client.post("/sessions", headers=auth_headers,
+                          json={"room_id": room["id"], "topic": "직선의 방정식"}).json()["session"]
+    assert client.post(f"/sessions/{session['id']}/finish", headers=auth_headers).status_code == 200
+    dashboard = client.get("/dashboard/me", headers=auth_headers).json()
+    assert dashboard["summary"]["average_score"] is None
+    assert dashboard["summary"]["explanation_level"] == "미확인"
+    assert dashboard["review_topics"] == []
+    now = datetime.now()
+    calendar = client.get("/dashboard/calendar", headers=auth_headers,
+                          params={"year": now.year, "month": now.month}).json()
+    records = [record for event in calendar["events"] for record in event["records"]]
+    assert len(records) == 1
+    assert records[0]["explanation_level"] == "미확인"

@@ -17,9 +17,10 @@ export default function MyPageView({ user }) {
         <div className="dday-card"><h3>완료한 학습</h3><p className="dday-text">{summary.completed_sessions}회</p></div>
         <div className="stats-card">
           <h3>누적 학습 통계</h3>
-          <p>완료한 교육과정 단원 {summary.completed_units}개</p>
+          <p>학습한 교육과정 단원 {summary.completed_units}개 (세션 종료 기준)</p>
           <p>완료한 복습 퀴즈 {summary.completed_quizzes}회</p>
-          <p>종합 설명 수준 {summary.explanation_level}</p>
+          <p>기존 규칙 평가 기록: {summary.explanation_level} (숙달도 아님)</p>
+          <p>새 학습의 목표 확인과 복습 제안은 정리노트에서 확인하세요.</p>
         </div>
       </div>
       <div className="badge-section"><h3>최근 학습 기록</h3><div className="badge-list">
@@ -31,8 +32,8 @@ export default function MyPageView({ user }) {
 }
 
 function scoreLevel(score) {
-  if (score == null) return "평가 전";
-  if (score >= 80) return "우수";
-  if (score >= 60) return "충분함";
-  return "보완 필요";
+  if (score == null) return "설명 수준 미확인";
+  if (score >= 80) return "기존 규칙 평가: 우수";
+  if (score >= 60) return "기존 규칙 평가: 충분함";
+  return "기존 규칙 평가: 보완 필요";
 }
