@@ -17,6 +17,8 @@ export default function StudyView() {
   const [feedback, setFeedback] = useState(null);
   const [messageMeta, setMessageMeta] = useState({});
   const [responseMeta, setResponseMeta] = useState(null);
+  const [learningReport, setLearningReport] = useState(null);
+  const [completedReport, setCompletedReport] = useState(null);
   const [ragStatus, setRagStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,6 +47,7 @@ export default function StudyView() {
         setMessages(restored.session.messages || []);
         setMessageMeta(metadataByMessage(restored.session.messages || []));
         setResponseMeta(restored.response_meta || null);
+        setLearningReport(restored.session.learning_report || null);
       } else {
         removeClientValue(ACTIVE_SESSION_KEY);
       }
@@ -90,6 +93,8 @@ export default function StudyView() {
       setSessionId(result.session.id);
       setActiveSession(result.session);
       setClientValue(ACTIVE_SESSION_KEY, String(result.session.id));
+      setLearningReport(result.session.learning_report || null);
+      setCompletedReport(null);
       setOpenSessions((current) => [result.session, ...current.filter((item) => item.id !== result.session.id)]);
       setMessages(result.session.messages);
       const firstMessage = result.session.messages[0];
@@ -109,6 +114,8 @@ export default function StudyView() {
       setSessionId(result.session.id);
       setActiveSession(result.session);
       setRoomId(String(result.session.room_id));
+      setLearningReport(result.session.learning_report || null);
+      setCompletedReport(null);
       setMessages(result.session.messages);
       setMessageMeta(metadataByMessage(result.session.messages));
       setResponseMeta(result.response_meta || null);
@@ -135,6 +142,7 @@ export default function StudyView() {
         content: result.message.content,
       }]);
       setFeedback(result.feedback && typeof result.feedback === "object" ? result.feedback : null);
+      setLearningReport(result.learning_report || null);
       if (result.message.id && result.response_meta) {
         setMessageMeta((current) => ({ ...current, [result.message.id]: result.response_meta }));
       }
@@ -150,7 +158,8 @@ export default function StudyView() {
   const finish = async () => {
     setLoading(true);
     try {
-      await api(`/sessions/${sessionId}/finish`, { method: "POST" });
+      const result = await api(`/sessions/${sessionId}/finish`, { method: "POST" });
+      setCompletedReport(result.learning_report || learningReport);
       setOpenSessions((current) => current.filter((item) => item.id !== sessionId));
       removeClientValue(ACTIVE_SESSION_KEY);
       setSessionId(null); setActiveSession(null); setMessages([]); setFeedback(null); setMessageMeta({}); setResponseMeta(null);
@@ -160,6 +169,7 @@ export default function StudyView() {
 
   if (!sessionId) return (
     <main className="study-start-card">
+      {completedReport && <section aria-label="지난 학습 결과"><h2>이번 학습 돌아보기</h2><LearningReport report={completedReport} finished /><p>결과는 정리노트에서도 다시 볼 수 있어요.</p></section>}
       <span className="study-kicker">AI 하브루타 튜터</span>
       <h2>설명하고, 질문받고, 다시 생각해보세요.</h2>
       <label>학습방<select value={roomId} onChange={(e) => { setRoomId(e.target.value); setCurriculumSelection(null); }}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title} · {room.subject || "일반"}</option>)}</select></label>
@@ -182,6 +192,7 @@ export default function StudyView() {
   return (
     <div className="study-chat-container">
       <header className="study-chat-header"><div><strong>{displayedTopic}</strong><span> · {currentRagStatus?.available ? `${currentRagStatus.curriculum_year} 성취기준 연계 RAG 기반` : "일반 하브루타"} 학습</span><small>현재 단계: {responseMeta?.stage || "개념 설명"}</small></div><button onClick={finish} disabled={loading}>학습 종료</button></header>
+      <LearningReport report={learningReport} />
       <div className="chat-messages">
         {messages.map((message, index) => (
           <div key={`${message.sender_type}-${message.id ?? index}`} className={`message-row ${message.sender_type}`}>
@@ -195,7 +206,7 @@ export default function StudyView() {
         {loading && <div className="message-row ai"><img src={aiImage} alt="AI" className="ai-avatar" /><div className="bubble"><span>생각을 정리하고 있어요...</span></div></div>}
         <div ref={bottomRef} />
       </div>
-      {feedback && <div className="feedback-strip"><div><strong>설명 수준 {formatFeedback(feedback.level, "분석 중")}</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div><div className="rubric-scores"><span>개념 {feedback.rubric?.concept ?? "-"}/40</span><span>근거 {feedback.rubric?.reasoning ?? "-"}/30</span><span>명료성 {feedback.rubric?.clarity ?? "-"}/20</span><span>참여 {feedback.rubric?.engagement ?? "-"}/10</span></div></div>}
+      {feedback && <div className="feedback-strip"><div><strong>설명 수준 {formatFeedback(feedback.level, "분석 중")}</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div>{feedback.assessment ? <div className="rubric-scores"><span>AI의 잠정 피드백 · 정답률이 아닙니다</span></div> : <div className="rubric-scores"><span>개념 {feedback.rubric?.concept ?? "-"}/40</span><span>근거 {feedback.rubric?.reasoning ?? "-"}/30</span><span>명료성 {feedback.rubric?.clarity ?? "-"}/20</span><span>참여 {feedback.rubric?.engagement ?? "-"}/10</span></div>}</div>}
       {error && <p className="study-error">{error}</p>}
       <form className="chat-input-bar" onSubmit={send}><input value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 풀이 과정을 입력하세요..." /><button className="send-btn" disabled={loading || !input.trim()} aria-label="전송">➤</button></form>
     </div>
@@ -205,7 +216,25 @@ export default function StudyView() {
 function EvidencePanel({ meta }) {
   const providerLabel = { openai: "OpenAI 생성", rule: "규칙 기반 폴백", question_template: "RAG 질문 구성" }[meta.ai_provider] || "응답 구성";
   const retrieverLabel = { chroma: "ChromaDB 의미 검색", lexical: "어휘 검색 폴백", none: "검색 근거 없음" }[meta.retriever] || meta.retriever;
-  return <details className="evidence-panel"><summary>{providerLabel} · {retrieverLabel} · 근거 {meta.sources?.length || 0}개</summary><div className="evidence-list">{(meta.sources || []).map((source) => <article key={source.source_id}><strong>{source.achievement_standard || `${source.subject || "교과"} 자료`}</strong><p>{source.excerpt}</p><small>{source.school_level || ""} {source.grade || ""} · 관련도 {Math.round((source.score || 0) * 100)}% · {source.retriever === "chroma" ? "의미·어휘 혼합 검색" : "어휘 검색"}</small></article>)}{!meta.sources?.length && <p>검색 자료 없이 안전한 기본 질문으로 진행했습니다.</p>}</div></details>;
+  return <details className="evidence-panel"><summary>{providerLabel} · {retrieverLabel} · 참고 자료 {meta.sources?.length || 0}개</summary><div className="evidence-list">{(meta.sources || []).map((source) => <article key={source.source_id}><strong>{source.achievement_standard || `${source.subject || "교과"} 자료`}</strong><p>{source.excerpt}</p><small>{source.school_level || ""} {source.grade || ""} · {{ bm25_rrf: "BM25 재정렬", cross_encoder: "Cross-Encoder 재정렬" }[source.reranker] || "검색 자료"}</small></article>)}{!meta.sources?.length && <p>현재 질문에 대한 검색 자료를 찾지 못했습니다. 답변의 사실 여부는 별도 확인이 필요합니다.</p>}{meta.dialogue_state && <p>학습 진행: {meta.dialogue_state.transition_reason}</p>}</div></details>;
+}
+
+function LearningReport({ report, finished = false }) {
+  if (!report || !Array.isArray(report.objectives)) return null;
+  return <details className="learning-report" open={finished}>
+    <summary>학습목표와 진행 · {report.checked_count}/{report.total_count}개 항목 AI 확인</summary>
+    <p className="learning-goal">{report.learning_goal}</p>
+    <ol>{report.objectives.map((item) => <li key={item.stage}>
+      <span>{item.description}</span><strong>{item.status === "ai_checked" ? "AI 확인" : "미확인"}</strong>
+      {finished && item.evidence_quote && <blockquote>{item.evidence_quote}</blockquote>}
+    </li>)}</ol>
+    {finished && <div className="explanation-comparison">
+      <div><strong>처음 설명</strong><p>{report.first_explanation || "작성한 설명이 없습니다."}</p></div>
+      <div><strong>마지막 설명</strong><p>{report.has_comparison ? report.latest_explanation : "비교할 두 번째 설명이 아직 없습니다."}</p></div>
+    </div>}
+    {report.misconception && <p>다시 확인할 개념: {report.misconception}</p>}
+    <p>다음 복습: {report.next_review}</p><small>{report.notice}</small>
+  </details>;
 }
 
 function formatFeedback(value, fallback) {

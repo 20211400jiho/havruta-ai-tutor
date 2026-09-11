@@ -2,6 +2,7 @@ from app.database.config import settings
 from app.rag import tutor as tutor_service
 from app.rag.retriever import SearchResult
 from app.rag import retriever as rag_service
+from app.rag.dialogue import TutorTurn
 
 
 def test_openai_generation_uses_configured_model(monkeypatch):
@@ -94,11 +95,13 @@ def test_openai_prompt_explicitly_preserves_conversation_continuity(monkeypatch)
 
     monkeypatch.setattr(tutor_service, "search", lambda *_args, **_kwargs: [])
 
-    def fake_generate(prompt, subject, conversation_history=None):
+    def fake_generate(prompt, subject, conversation_history=None, response_schema=None):
         captured["prompt"] = prompt
         captured["subject"] = subject
         captured["conversation_history"] = conversation_history
-        return "앞선 질문을 이어가는 답변", "openai"
+        return TutorTurn(explanation="앞선 질문을 이어가는 답변", next_question="두 표현의 쓰임을 골라볼까요?",
+                         assessment="partial", evidence_quote="", reasoning="차이를 추가 확인합니다.",
+                         misconception="", source_ids=[]).model_dump_json(), "openai"
 
     monkeypatch.setattr(tutor_service, "generate_with_provider", fake_generate)
 
@@ -113,7 +116,7 @@ def test_openai_prompt_explicitly_preserves_conversation_continuity(monkeypatch)
         ],
     )
 
-    assert reply == "앞선 질문을 이어가는 답변"
+    assert reply.startswith("앞선 질문을 이어가는 답변")
     assert "직전 AI 질문: useful과 convenient의 차이는 무엇일까요?" in captured["prompt"]
     assert "갑자기 다른 개념이나 문제로 전환하지 마세요" in captured["prompt"]
     assert captured["subject"] == "영어"

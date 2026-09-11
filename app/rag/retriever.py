@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database.config import settings
 from app.models.document import Document, DocumentChunk
+from app.rag.reranker import rerank
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -481,6 +482,7 @@ def search(
     unit_code: str | None = None,
     school_level: str | None = None,
     grade: str | None = None,
+    rerank_query: str | None = None,
 ) -> list[SearchResult]:
     normalized_subject = subject.strip() if subject else None
     normalized_curriculum_year = (
@@ -492,11 +494,16 @@ def search(
     normalized_school_level = school_level.strip() if school_level else None
     normalized_grade = grade.strip() if grade else None
     provider = settings.rag_provider.strip().lower()
+    candidate_k = top_k if settings.rag_reranker == "off" else max(top_k, settings.rag_rerank_candidates)
+    def select(results):
+        return rerank(rerank_query or query, results, top_k,
+                      mode=settings.rag_reranker, model_name=settings.rag_rerank_model)
+
     if provider in {"auto", "chroma"}:
         try:
             results = search_chroma(
                 query,
-                top_k,
+                candidate_k,
                 normalized_subject,
                 normalized_curriculum_year,
                 selected_standard_code,
@@ -505,17 +512,17 @@ def search(
                 normalized_grade,
             )
             if results:
-                return results
+                return select(results)
         except Exception as exc:
             logger.warning("Chroma 검색에 실패해 MySQL 어휘 검색으로 대체합니다: %s", exc)
-    return _lexical_search(
+    return select(_lexical_search(
         db,
         query,
-        top_k,
+        candidate_k,
         normalized_subject,
         normalized_curriculum_year,
         selected_standard_code,
         normalized_unit_code,
         normalized_school_level,
         normalized_grade,
-    )
+    ))

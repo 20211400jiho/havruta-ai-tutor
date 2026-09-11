@@ -12,12 +12,14 @@ from app.models.chat import ChatSession, Message
 from app.models.document import RagReference
 from app.models.learning import LearningRecord, LearningRoom, RoomMember
 from app.models.user import User
+from app.models.study_content import StudyNote
 from app.schemas.chat import MessageCreateRequest, SessionCreateRequest
 from app.services.content_service import create_note_for_session
 from app.database.config import settings
 from app.rag.curriculum import is_valid_curriculum_selection
 from app.services.rate_limit_service import AIUsageLimitError, check_and_record_ai_usage
 from app.rag.tutor import conversation_stage, initial_question, source_summary, tutor_reply
+from app.rag.dialogue import DialogueState, extract_question, learning_report
 
 
 router = APIRouter(prefix="/sessions", tags=["AI 학습 세션"])
@@ -88,6 +90,7 @@ def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
             message_dict(message)
             for message in sorted(session.messages, key=lambda item: (item.created_at, item.id))
         ]
+        result["learning_report"] = learning_report(result["messages"], session.topic or "학습")
     return result
 
 
@@ -133,6 +136,10 @@ def create_session(
         "grounded": bool(contexts),
         "curriculum_year": settings.rag_curriculum_year,
         "stage": "개념 설명",
+        "dialogue_state": DialogueState(
+            focus_question=extract_question(question), last_question=extract_question(question),
+            learning_goal=extract_question(question),
+        ).model_dump(),
         "sources": [source_summary(item) for item in contexts],
     }
     ai_message = Message(
@@ -177,9 +184,12 @@ def get_session(
     if session.user_id != user.id:
         raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
     serialized = session_dict(session, include_messages=True)
+    latest_meta = next((item["response_meta"] for item in reversed(serialized["messages"])
+                        if item["sender_type"] == "ai" and isinstance(item.get("response_meta"), dict)), {})
     return {
         "session": serialized,
         "response_meta": {
+            **latest_meta,
             "stage": conversation_stage(serialized["messages"]),
             "curriculum_year": settings.rag_curriculum_year,
         },
@@ -248,6 +258,9 @@ def send_message(
         "message": message_dict(ai_message),
         "feedback": feedback_data,
         "response_meta": response_meta,
+        "learning_report": learning_report(
+            [message_dict(message) for message in history] + [message_dict(ai_message)], session.topic or "학습"
+        ),
     }
 
 
@@ -263,7 +276,10 @@ def finish_session(
     if session.user_id != user.id:
         raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
     if session.learning_record:
-        return {"message": "이미 종료된 세션입니다.", "record_id": session.learning_record.id}
+        existing_note = db.query(StudyNote).filter_by(session_id=session.id, user_id=user.id).first()
+        return {"message": "이미 종료된 세션입니다.", "record_id": session.learning_record.id,
+                "note_id": existing_note.id if existing_note else None,
+                "learning_report": session_dict(session, True)["learning_report"]}
     total_messages = db.query(func.count(Message.id)).filter(Message.session_id == session.id).scalar() or 0
     average = db.query(func.avg(AIFeedback.score)).filter(AIFeedback.session_id == session.id).scalar()
     session.state = "finished"
@@ -280,4 +296,5 @@ def finish_session(
     note = create_note_for_session(db, session)
     db.commit()
     db.refresh(record)
-    return {"message": "학습 세션이 완료되었습니다.", "record_id": record.id, "note_id": note.id}
+    return {"message": "학습 세션이 완료되었습니다.", "record_id": record.id, "note_id": note.id,
+            "learning_report": session_dict(session, True)["learning_report"]}

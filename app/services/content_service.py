@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.chat import ChatSession
 from app.models.study_content import Quiz, QuizQuestion, StudyNote
 from app.rag.retriever import search
+from app.rag.dialogue import learning_report
 
 
 class QuizSourceNotFoundError(ValueError):
@@ -20,26 +21,27 @@ def create_note_for_session(db: Session, session: ChatSession) -> StudyNote:
     existing = db.query(StudyNote).filter(StudyNote.session_id == session.id).first()
     if existing:
         return existing
+    ordered_messages = sorted(session.messages, key=lambda item: (item.created_at, item.id))
+    report = learning_report([{"sender_type": message.sender_type, "content": message.content,
+                               "response_meta": message.response_meta_json} for message in ordered_messages],
+                             session.topic or "학습")
     user_messages = [message.content.strip() for message in session.messages if message.sender_type == "user"]
     scores = [feedback.score for feedback in session.feedbacks if feedback.score is not None]
     average = round(sum(scores) / len(scores)) if scores else None
-    best_feedback = max(
-        (feedback for feedback in session.feedbacks if feedback.score is not None),
-        key=lambda feedback: feedback.score,
-        default=None,
-    )
-    best_explanation = best_feedback.message.content.strip() if best_feedback and best_feedback.message else None
     strengths = _unique_text([feedback.strengths for feedback in session.feedbacks])
     improvements = _unique_text([feedback.improvements for feedback in session.feedbacks])
     followups = _unique_text([feedback.followup_question for feedback in session.feedbacks])
     standards: list[str] = []
     for message in session.messages:
+        for source in (message.response_meta_json or {}).get("sources", []):
+            if source.get("achievement_standard"):
+                standards.append(source["achievement_standard"])
         for reference in message.rag_references:
             metadata = reference.chunk.metadata_json or {}
             standard = str(metadata.get("achievement_standard_2022") or "").strip()
             if standard:
                 standards.append(standard)
-    level = "우수" if average is not None and average >= 80 else "충분함" if average is not None and average >= 60 else "보완 필요"
+    level = "우수" if average is not None and average >= 80 else "충분함" if average is not None and average >= 60 else "보완 필요" if average is not None else "미확인"
     content_lines = [
         f"# {session.topic or '학습'} 핵심 정리",
         "",
@@ -47,10 +49,13 @@ def create_note_for_session(db: Session, session: ChatSession) -> StudyNote:
         f"- 과목: {session.room.subject if session.room and session.room.subject else '학습'}",
         f"- 단원: {session.topic or '자유 학습'}",
         f"- 교육과정 단원 코드: {session.unit_code or '미지정'}",
+        f"- 이번 대화의 학습목표: {report['learning_goal']}",
         "",
         "## 핵심 개념과 나의 설명",
         f"- 이번 학습의 핵심 주제는 ‘{session.topic or '학습 주제'}’입니다.",
-        *([f"- 가장 충실했던 설명: {best_explanation}"] if best_explanation else ["- 아직 충분한 설명이 기록되지 않았습니다."]),
+        f"- 처음 설명: {report['first_explanation'] or '아직 설명을 작성하지 않았습니다.'}",
+        f"- 마지막 설명: {report['latest_explanation'] or '아직 설명을 작성하지 않았습니다.'}",
+        "- 위 기록은 설명 변화를 돌아보기 위한 자료이며 사전·사후 시험 점수가 아닙니다.",
         "",
         "## 잘한 점",
         *([f"- {item}" for item in strengths] or ["- 자신의 생각을 말로 표현하며 학습에 참여했습니다."]),
@@ -59,8 +64,11 @@ def create_note_for_session(db: Session, session: ChatSession) -> StudyNote:
         *([f"- {item}" for item in improvements] or ["- 핵심 원리를 예시와 함께 다시 설명해보세요."]),
         "",
         "## 학습 결과",
-        f"- 설명 수준: {level}",
-        f"- 분석 점수 평균: {average if average is not None else '-'}점 (개념·근거·명료성·참여도 기준)",
+        *[f"- {item['description']}: {'AI 확인' if item['status'] == 'ai_checked' else '미확인'}"
+          + (f" / 학생 설명: {item['evidence_quote']}" if item['evidence_quote'] else "") for item in report["objectives"]],
+        f"- {report['notice']}",
+        *([f"- 과거 규칙 평가 기록: {level}, {average}점 (검증된 이해도 아님)"] if average is not None else []),
+        f"- 다음 복습: {report['next_review']}",
         f"- 총 대화 메시지: {len(session.messages)}개",
         "",
         "## 2022 교육과정 근거",

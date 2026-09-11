@@ -246,8 +246,6 @@ code {
 :root[data-theme="dark"] .chat-input-bar,
 :root[data-theme="dark"] .graph-box,
 :root[data-theme="dark"] .btn-back,
-:root[data-theme="dark"] .quiz-option,
-:root[data-theme="dark"] .day-cell,
 :root[data-theme="dark"] .setting-status {
   color: var(--text-primary);
   background: var(--surface-muted) !important;

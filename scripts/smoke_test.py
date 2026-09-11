@@ -99,7 +99,9 @@ def main() -> None:
         answer.raise_for_status()
         answer_payload = answer.json()
         assert answer_payload["response_meta"]["grounded"] is True
-        assert answer_payload["feedback"]["rubric"]
+        assert answer_payload["response_meta"]["dialogue_state"]["learning_goal"]
+        assert len(answer_payload["learning_report"]["objectives"]) == 5
+        assert answer_payload["feedback"]["score"] is None
 
         finish = client.post(f"/sessions/{session_id}/finish", headers=owner_headers)
         finish.raise_for_status()

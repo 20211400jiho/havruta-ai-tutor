@@ -54,13 +54,14 @@ def test_complete_learning_flow(client, auth_headers):
     )
     assert answer_response.status_code == 200
     answer_payload = answer_response.json()
-    assert answer_payload["feedback"]["score"] >= 50
-    assert answer_payload["feedback"]["score"] == sum(answer_payload["feedback"]["rubric"].values())
-    assert answer_payload["feedback"]["level"] in {"우수", "충분함", "보완 필요"}
+    assert answer_payload["feedback"]["score"] is None
+    assert answer_payload["feedback"]["assessment"] == "unassessed"
+    assert answer_payload["learning_report"]["checked_count"] == 0
     assert answer_payload["message"]["sender_type"] == "ai"
     assert answer_payload["response_meta"]["ai_provider"] == "rule"
     assert answer_payload["response_meta"]["retriever"] == "lexical"
-    assert answer_payload["response_meta"]["stage"] == "근거 확인"
+    # Rule fallback cannot establish understanding, even for a long answer.
+    assert answer_payload["response_meta"]["stage"] == "개념 설명"
     assert answer_payload["response_meta"]["sources"]
 
     restored_response = client.get(f"/sessions/{session['id']}", headers=auth_headers)
@@ -68,7 +69,7 @@ def test_complete_learning_flow(client, auth_headers):
     restored_ai = restored_response.json()["session"]["messages"][-1]
     assert restored_ai["sender_type"] == "ai"
     assert restored_ai["response_meta"]["sources"]
-    assert restored_response.json()["response_meta"]["stage"] == "근거 확인"
+    assert restored_response.json()["response_meta"]["stage"] == "개념 설명"
 
     finish_response = client.post(f"/sessions/{session['id']}/finish", headers=auth_headers)
     assert finish_response.status_code == 200
@@ -406,7 +407,7 @@ def test_uncertain_answer_resumes_without_advancing_stage(client, auth_headers):
         json={"content": "useful은 도움에 가깝고 convenient는 사용하기 편한 상황 같아요."},
     )
     assert substantive.status_code == 200
-    assert substantive.json()["response_meta"]["stage"] == "근거 확인"
+    assert substantive.json()["response_meta"]["stage"] == "개념 설명"
 
 
 def test_invalid_grade_unit_combination_is_rejected(client, auth_headers):

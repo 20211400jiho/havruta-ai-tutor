@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,6 +36,10 @@ class Settings(BaseSettings):
     embedding_model: str = "intfloat/multilingual-e5-base"
     embedding_local_files_only: bool = True
     rag_min_score: float = 0.2
+    rag_reranker: Literal["off", "bm25", "cross_encoder"] = "bm25"
+    rag_rerank_candidates: int = Field(default=15, ge=3, le=40)
+    # Optional local model path / cached multilingual CrossEncoder ID. No runtime downloads.
+    rag_rerank_model: str = ""
     redis_url: str | None = None
 
     model_config = SettingsConfigDict(

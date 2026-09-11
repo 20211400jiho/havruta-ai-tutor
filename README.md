@@ -1,6 +1,12 @@
 # Havruta AI Tutor
 
+> 졸업작품 발표 구성도·프론트/백엔드 설명·발표 원고는 [발표 자료](docs/PRESENTATION_GUIDE.md)를 참고하세요.
+
 > 구조와 RAG 처리 흐름은 [프로젝트 구조 안내](docs/PROJECT_STRUCTURE.md)를 참고하세요.
+
+> 검색 재정렬·대화 상태 관리의 구현 및 평가 한계는 [개선 기록](docs/RAG_DIALOGUE_IMPROVEMENTS.md)를 참고하세요.
+
+> B-4조 캡스톤 1주차 질의응답·개선 내용·검증 계획은 [교수님 피드백 대응](docs/CAPSTONE_WEEK1_RESPONSE.md)을 참고하세요.
 
 > 전체 기획·구현·운영 설명서는 [`docs/PROJECT_MANUAL.md`](docs/PROJECT_MANUAL.md)를 참고하세요.
 

@@ -1,0 +1,153 @@
+/* Keep dark-mode foreground/background pairs together, after component styles. */
+:root[data-theme="dark"] {
+  --text-muted: #b8c5d8;
+  --dark-info-bg: #203653;
+  --dark-info-text: #bfdbfe;
+  --dark-success-bg: #14382b;
+  --dark-success-text: #a7f3d0;
+  --dark-warning-bg: #422f17;
+  --dark-warning-text: #fde68a;
+  --dark-error-bg: #451a26;
+  --dark-error-text: #fecdd3;
+  --dark-action-bg: #315bc7;
+}
+
+:root[data-theme="dark"] :is(
+  .notion-content h1, .page-body, .detail-body, .note-card ul,
+  .quiz-question-block h3, .quiz-progress-current, .current-month-text,
+  .report-section-sub, .report-item, .total-label, .total-value
+) { color: var(--text-primary); }
+
+:root[data-theme="dark"] :is(
+  .card-label, .card-sub, .card p, .study-chat-header span,
+  .study-chat-header small, .evidence-list small, .resume-sessions small,
+  .room-panel header p, .room-item p, .chat-header p, .message-author,
+  .empty-chat, .collaborative-panel > div:first-child p, .meta-info,
+  .date, .quiz-card-date, .quiz-progress, .weekday-label, .item-value,
+  .no-data-text, .auth-card p, .arrow-btn
+) { color: var(--text-muted); }
+
+:root[data-theme="dark"] :is(
+  .study-kicker, .evidence-panel summary, .discussion-meta, .back-button,
+  .back-btn, .btn-quiz-start, .auth-brand, .auth-card .auth-switch, .dday-text
+) { color: var(--dark-info-text); }
+
+:root[data-theme="dark"] :is(
+  .chat-header, .resume-sessions, .total-time-footer-card, .avatar, .btn-today
+) {
+  color: var(--text-primary);
+  background: var(--surface-muted);
+  border-color: var(--border-color);
+}
+:root[data-theme="dark"] .auth-page { background: var(--page-bg); }
+:root[data-theme="dark"] .divider { background: var(--border-color); }
+
+:root[data-theme="dark"] :is(
+  .feedback-strip, .quiz-result, .quiz-card-count, .badge, .blue-box,
+  .curriculum-state, .chat-notice, .resume-sessions > button,
+  .room-item-actions > button:not(.enter-room):not(.delete-room)
+) {
+  color: var(--dark-info-text);
+  background: var(--dark-info-bg);
+  border-color: #527398;
+}
+:root[data-theme="dark"] .quiz-result strong { color: var(--dark-info-text); }
+:root[data-theme="dark"] .orange-box { color: var(--dark-warning-text); background: var(--dark-warning-bg); }
+:root[data-theme="dark"] .purple-box { color: #e9d5ff; background: #3b2459; }
+:root[data-theme="dark"] .quick-menu .blue { background: var(--dark-action-bg); }
+:root[data-theme="dark"] .quick-menu .green { background: #166534; }
+:root[data-theme="dark"] .quick-menu .purple { background: #6b21a8; }
+:root[data-theme="dark"] .quick-menu .orange { background: #9a3412; }
+:root[data-theme="dark"] .rubric-scores span {
+  color: var(--text-primary);
+  background: var(--surface-muted);
+}
+
+:root[data-theme="dark"] :is(.room-notice, .connection-status.connected) {
+  color: var(--dark-success-text);
+  background: var(--dark-success-bg);
+}
+:root[data-theme="dark"] :is(
+  .rag-notice, .badge-item, .connection-status.connecting, .connection-status.reconnecting
+) {
+  color: var(--dark-warning-text);
+  background: var(--dark-warning-bg);
+}
+:root[data-theme="dark"] :is(
+  .auth-error, .room-error, .curriculum-state.error,
+  .connection-status.error, .connection-status.denied,
+  .room-item-actions .delete-room, .content-delete
+) {
+  color: var(--dark-error-text);
+  background: var(--dark-error-bg);
+  border-color: #bd7184;
+}
+:root[data-theme="dark"] .study-error { color: var(--dark-error-text); }
+:root[data-theme="dark"] .connection-status.disconnected {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+}
+
+/* Answer state must remain visible after grading, even on disabled buttons. */
+:root[data-theme="dark"] .quiz-option {
+  color: var(--text-primary);
+  background: var(--surface-muted);
+  border-color: #62748e;
+}
+:root[data-theme="dark"] .quiz-option:hover:not(:disabled) { background: var(--dark-info-bg); }
+:root[data-theme="dark"] .option-number {
+  color: var(--dark-info-text);
+  background: var(--dark-info-bg);
+}
+:root[data-theme="dark"] .quiz-option.correct {
+  color: var(--dark-success-text);
+  background: var(--dark-success-bg);
+  border-color: #6ee7b7;
+}
+:root[data-theme="dark"] .quiz-option.correct .option-number {
+  color: var(--dark-success-text);
+  background: #1d4938;
+}
+:root[data-theme="dark"] .quiz-option.incorrect {
+  color: var(--dark-error-text);
+  background: var(--dark-error-bg);
+  border-color: #fda4af;
+}
+:root[data-theme="dark"] .quiz-option.incorrect .option-number {
+  color: var(--dark-error-text);
+  background: #632638;
+}
+:root[data-theme="dark"] .quiz-explanation { color: var(--dark-warning-text); }
+:root[data-theme="dark"] :is(.quiz-explanation.correct-text, .text-green) { color: var(--dark-success-text); }
+
+:root[data-theme="dark"] .day-cell { color: var(--text-primary); background: transparent; }
+:root[data-theme="dark"] .day-cell.other-month { color: var(--text-muted); }
+:root[data-theme="dark"] .day-cell.selected-day {
+  color: #fff;
+  background: var(--dark-action-bg);
+  outline: 2px solid #93c5fd;
+}
+
+:root[data-theme="dark"] :is(
+  .btn-primary, .btn-generate-quiz, .btn-next, .study-chat-header button,
+  .study-start-card > button, .collaborative-panel > button,
+  .room-item-actions .enter-room, .chat-input button,
+  .auth-card button:not(.auth-switch), .menu li.active, .menu li:hover
+) { color: #fff; background: var(--dark-action-bg); }
+
+:root[data-theme="dark"] :is(input, textarea)::placeholder { color: var(--text-muted); opacity: 1; }
+:root[data-theme="dark"] :is(select option, select optgroup) {
+  color: var(--text-primary);
+  background: var(--surface-muted);
+}
+:root[data-theme="dark"] :is(button:not(.quiz-option), input, select, textarea):disabled {
+  color: var(--text-muted);
+  background: var(--surface-muted) !important;
+  opacity: 1;
+  cursor: not-allowed;
+  -webkit-text-fill-color: currentColor;
+}
+:root[data-theme="dark"] :is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 3px;
+}
