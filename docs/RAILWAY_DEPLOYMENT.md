@@ -1,5 +1,7 @@
 # Railway 배포 설명서
 
+최신 배포 커밋과 2026-09-12 최종 확인 결과: [캡스톤 배포 검증](RELEASE_VALIDATION.md).
+
 > RAG 중심 구조의 배포 경로는 Backend Root Directory `/`, Config as Code `/railway.json`, Frontend Root Directory `/web`, Config as Code `/web/railway.json`이다. 이전 커밋 `1c4cf82`의 `/backend`, `/frontend` 구조에서 전환할 때 두 서비스의 경로를 함께 변경한다.
 
 이 문서는 현재 `main` 브랜치의 통합 프로젝트를 Railway에 배포하는 절차다. 최종 구성은 네 서비스다.

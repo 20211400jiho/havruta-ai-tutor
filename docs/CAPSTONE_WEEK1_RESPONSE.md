@@ -144,8 +144,9 @@ Docker 이미지로 프론트/백엔드를 Railway에 배포하고 MySQL·Redis�
 
 ### Q12. 지금 검증한 것과 남은 것은 무엇인가요?
 
-구현 검증: 자동 테스트 60개 통과, 프론트 lint/build 통과. 등록된 OpenAI 키로 구조화 응답 1회 실제 호출 통과.
-배포 후에는 `scripts/smoke_learning_goals.py`로 실제 RAG·AI 3턴·이어하기·종료·노트를 확인한다.
+구현 검증: 자동 테스트 61개 통과, 프론트 lint/build 통과. 등록된 OpenAI 키로 구조화 응답 1회 실제 호출 통과.
+배포 후 `scripts/smoke_learning_goals.py`로 실제 RAG·OpenAI 3턴·상태 복원·종료·노트 저장을 확인했다.
+세부 결과와 최종 배포 상태는 [배포 검증](RELEASE_VALIDATION.md)에 기록한다.
 브라우저 연결이 제공되지 않아 화면의 직접 클릭/시각 검증은 이번 환경에서 수행할 수 없었다.
 
 남은 연구 검증: 43개 메타데이터 점검 대상 검수, 과목별 자료 적합성 평가, 일반 챗봇 비교, 실제 학생 사전·사후 실험.
@@ -181,6 +182,7 @@ Docker 이미지로 프론트/백엔드를 Railway에 배포하고 MySQL·Redis�
 - 저장·복원·종료: `app/routers/sessions.py`
 - 정리노트: `app/services/content_service.py`
 - 화면: `web/src/StudyView.jsx`, `web/src/StudyView.css`
+- 미확인 평가·통계 표시: `app/routers/dashboard.py`, `web/src/Home.jsx`, `web/src/MyPageView.jsx`
 - 평가·배포 확인: `scripts/evaluate_reranking.py`, `scripts/audit_curriculum.py`, `scripts/smoke_learning_goals.py`
 - 회귀 테스트: `tests/test_dialogue_state.py`, `tests/test_reranker.py`, `tests/test_learning_report.py`
 
