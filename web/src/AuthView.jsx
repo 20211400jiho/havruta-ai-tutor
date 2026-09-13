@@ -40,7 +40,7 @@ export default function AuthView({ onAuthenticated }) {
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-brand">AI Study</div>
         <h1>{mode === "login" ? "다시 만나서 반가워요" : "하브루타 학습 시작하기"}</h1>
-        <p>AI와 질문하고 설명하며 수학 개념을 깊게 익혀보세요.</p>
+        <p>중·고등학생을 위한 AI 하브루타 학습. 교과 개념을 내 말로 설명하고, 질문하며 함께 익혀보세요.</p>
         {mode === "signup" && (
           <>
             <input required autoComplete="name" placeholder="이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

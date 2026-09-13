@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import aiImage from "./assets/study_ai.png";
 import CurriculumSelector from "./CurriculumSelector";
+import LearningReport from "./LearningReport";
 import { ACTIVE_SESSION_KEY, getClientValue, removeClientValue, setClientValue } from "./clientStorage";
 import "./StudyView.css";
 
@@ -168,10 +169,10 @@ export default function StudyView() {
   };
 
   if (!sessionId) return (
-    <main className="study-start-card">
-      {completedReport && <section aria-label="지난 학습 결과"><h2>이번 학습 돌아보기</h2><LearningReport report={completedReport} finished /><p>결과는 정리노트에서도 다시 볼 수 있어요.</p></section>}
-      <span className="study-kicker">AI 하브루타 튜터</span>
-      <h2>설명하고, 질문받고, 다시 생각해보세요.</h2>
+    <main className={`study-start-card${completedReport ? " study-start-card--with-report" : ""}`}>
+      {completedReport && <section className="study-completed-report" aria-label="지난 학습 결과"><LearningReport report={completedReport} finished /></section>}
+      <span className="study-kicker">{completedReport ? "중·고등학생을 위한 새로운 학습" : "중·고등학생을 위한 AI 하브루타 튜터"}</span>
+      <h2>{completedReport ? "다른 단원도 이어서 학습해 볼까요?" : "설명하고, 질문받고, 다시 생각해보세요."}</h2>
       <label>학습방<select value={roomId} onChange={(e) => { setRoomId(e.target.value); setCurriculumSelection(null); }}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title} · {room.subject || "일반"}</option>)}</select></label>
       <label>교과목<input value={selectedRoom?.subject || "학습방을 선택하세요"} readOnly /></label>
       <CurriculumSelector
@@ -217,24 +218,6 @@ function EvidencePanel({ meta }) {
   const providerLabel = { openai: "OpenAI 생성", rule: "규칙 기반 폴백", question_template: "RAG 질문 구성" }[meta.ai_provider] || "응답 구성";
   const retrieverLabel = { chroma: "ChromaDB 의미 검색", lexical: "어휘 검색 폴백", none: "검색 근거 없음" }[meta.retriever] || meta.retriever;
   return <details className="evidence-panel"><summary>{providerLabel} · {retrieverLabel} · 참고 자료 {meta.sources?.length || 0}개</summary><div className="evidence-list">{(meta.sources || []).map((source) => <article key={source.source_id}><strong>{source.achievement_standard || `${source.subject || "교과"} 자료`}</strong><p>{source.excerpt}</p><small>{source.school_level || ""} {source.grade || ""} · {{ bm25_rrf: "BM25 재정렬", cross_encoder: "Cross-Encoder 재정렬" }[source.reranker] || "검색 자료"}</small></article>)}{!meta.sources?.length && <p>현재 질문에 대한 검색 자료를 찾지 못했습니다. 답변의 사실 여부는 별도 확인이 필요합니다.</p>}{meta.dialogue_state && <p>학습 진행: {meta.dialogue_state.transition_reason}</p>}</div></details>;
-}
-
-function LearningReport({ report, finished = false }) {
-  if (!report || !Array.isArray(report.objectives)) return null;
-  return <details className="learning-report" open={finished}>
-    <summary>학습목표와 진행 · {report.checked_count}/{report.total_count}개 항목 AI 확인</summary>
-    <p className="learning-goal">{report.learning_goal}</p>
-    <ol>{report.objectives.map((item) => <li key={item.stage}>
-      <span>{item.description}</span><strong>{item.status === "ai_checked" ? "AI 확인" : "미확인"}</strong>
-      {finished && item.evidence_quote && <blockquote>{item.evidence_quote}</blockquote>}
-    </li>)}</ol>
-    {finished && <div className="explanation-comparison">
-      <div><strong>처음 설명</strong><p>{report.first_explanation || "작성한 설명이 없습니다."}</p></div>
-      <div><strong>마지막 설명</strong><p>{report.has_comparison ? report.latest_explanation : "비교할 두 번째 설명이 아직 없습니다."}</p></div>
-    </div>}
-    {report.misconception && <p>다시 확인할 개념: {report.misconception}</p>}
-    <p>다음 복습: {report.next_review}</p><small>{report.notice}</small>
-  </details>;
 }
 
 function formatFeedback(value, fallback) {
