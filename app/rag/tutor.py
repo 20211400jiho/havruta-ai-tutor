@@ -8,7 +8,8 @@ from pydantic import ValidationError
 from app.database.config import settings
 from app.rag.retriever import SearchResult, search, tokenize
 from app.rag.dialogue import (
-    TutorTurn, STAGES, restore_state, prepare_state, apply_assessment, classify_intent,
+    ProgressiveTutorTurn, STAGES, STAGE_GOALS, QUESTION_GOALS,
+    restore_state, prepare_state, apply_assessment, classify_intent, select_followup,
 )
 
 
@@ -209,6 +210,8 @@ def tutor_reply(
         for part in (
             topic,
             dialogue.focus_question,
+            previous_question,
+            STAGE_GOALS[STAGES[min(STAGES.index(stage) + 1, len(STAGES) - 1)]],
             "" if dialogue.last_intent in {"hint", "acknowledgement"} else answer[:1000],
         )
         if part
@@ -221,7 +224,7 @@ def tutor_reply(
         unit_code=unit_code,
         school_level=school_level,
         grade=grade,
-        rerank_query=f"{topic} {dialogue.focus_question} " + (
+        rerank_query=f"{topic} {dialogue.focus_question} {previous_question} " + (
             answer[:500] if dialogue.last_intent in {"answer", "question"} else ""
         ),
     )
@@ -251,31 +254,42 @@ def tutor_reply(
     )
     prompt = (
         f"교과목: {subject}\n"
+        f"학생 수준: {school_level or '중·고등학교'} {grade or '학년 미설정'}\n"
         f"학습 주제: {topic}\n"
         f"이번 대화의 학습목표(질문): {dialogue.learning_goal}\n"
         f"현재 하브루타 단계: {stage}\n"
         f"단계 순서: {' → '.join(STAGES)}\n"
         "단계별 확인 기준: 개념 설명=정의/구분, 근거 확인=이유 설명, 생각 수정=오개념 수정 또는 반례 검토, "
         "적용=새 사례 해결, 최종 정리=자기 말로 요약.\n"
-        f"유지할 핵심 질문: {dialogue.focus_question}\n"
+        f"현재 확인 중인 개념 질문(반복 출제 지시가 아님): {dialogue.focus_question}\n"
         f"직전 AI 질문: {previous_question or '[없음]'}\n"
         f"서버 판별 학생 반응 유형: {dialogue.last_intent}\n"
         f"누적 힌트 횟수: {dialogue.hint_count}\n"
+        f"같은 단계에서 대화한 횟수: {dialogue.stage_turns}\n"
+        f"확인된 질문(다시 출제하지 말 것): {json.dumps(dialogue.answered_questions, ensure_ascii=False)}\n"
         f"대화 상태(참고 데이터): {json.dumps(dialogue.model_dump(), ensure_ascii=False)}\n"
         f"학생의 최신 답변: {answer}\n\n"
-        "반드시 직전 AI 질문을 이어서 응답하고 갑자기 다른 개념이나 문제로 전환하지 마세요. "
-        "아래 검색 자료에 다른 질문이 포함되어 있어도 새로운 문제를 출제하지 말고 사실 근거로만 사용하세요. "
+        "먼저 직전 질문에 대한 학생 답변을 평가한 뒤 다음 질문의 목적을 정하세요. "
+        "직전 질문을 이어간다는 것은 같은 정답을 반복 요구하는 뜻이 아닙니다. "
+        "단원의 연결된 개념 안에서 이유·반례·새로운 생활 사례·탐구 방법으로 확장하세요. "
+        "검색 자료의 질문을 그대로 복사하지 말고 사실 근거로만 사용하세요. "
         "학생이 모른다고 하거나 힌트를 요청하면 직전 질문의 개념을 더 쉬운 말과 짧은 예시로 설명한 뒤, "
         "답할 수 있는 작은 질문 하나를 하세요. 힌트가 2회 이상이면 같은 힌트를 반복하지 말고 "
-        "핵심을 직접 설명하고 선택형 예시로 확인하세요. 학생 질문에는 먼저 답하세요. "
+        "핵심을 직접 설명하고 생활 사례의 일부를 학생이 설명하게 하세요. 학생 질문에는 먼저 답하세요. "
+        "같은 정답을 객관식→빈칸→단답으로 바꾸는 반복은 금지합니다. "
+        "같은 단계가 3턴 이상이면 정답 명칭을 재질문하지 말고 풀이가 있는 구체적인 예시와 작은 이유 질문을 주세요. "
         "단순 동의, 질문, 힌트 요청은 이해 증거가 아니므로 unassessed로 평가하세요. "
         "학생이 현재 질문의 핵심을 올바르게 설명한 경우만 understood로 판단하고 그 외에는 "
         "partial/misconception/unassessed를 사용하세요. 문장 길이나 키워드만으로 평가하지 마세요. "
-        "쉬운 힌트 질문 하나에 답했어도 유지할 핵심 질문을 아직 설명하지 못하면 partial입니다. "
+        "학생이 이유를 설명했다면 최초의 명칭 문제로 돌아가지 마세요. "
+        "짧은 답도 직전 질문에 충분하면 인정하되, 선택지 번호만 맞힌 것을 이유·적용 이해로 간주하지 마세요. "
         "understood는 최신 학생 답변에서 정확히 인용한 evidence_quote와 이를 뒷받침하는 실제 "
         "자료 source_ids가 있을 때만 허용합니다. 자료가 없으면 understood를 사용하지 마세요. "
-        "understood일 때만 같은 주제의 다음 단계 질문을 만드세요. 그 외에는 핵심 질문의 개념을 "
-        "유지하고 단계 전환이나 새 개념 도입을 하지 마세요. "
+        "understood이면 반드시 다음 단계의 사고를 요구하세요. 개념→이유, 이유→반례·조건 검토, "
+        "반례→새 상황 적용, 적용→요약으로 진행하며 이전 단계로 돌아가지 마세요. "
+        "그 외에는 숙달을 선언하지 않고 사례·힌트로 돕되 이미 답한 내용을 재출제하지 마세요. "
+        f"next_question_goal은 질문의 실제 목적을 다음 대응으로 쓰세요: {json.dumps(QUESTION_GOALS, ensure_ascii=False)}. "
+        "도움을 주는 작은 질문은 scaffold, 최종 정리 확인 후 마무리·복습 선택은 review입니다. "
         "explanation에는 질문을 넣지 말고 짧은 설명만, next_question에는 질문 하나만 쓰세요. "
         "잘못된 개념이 있으면 misconception에 기록하세요. 판단은 잠정적이며 완전한 숙달을 선언하지 마세요.\n\n"
         "도덕·사회에서는 다양한 타당한 의견을 인정하고 선택한 입장 자체를 오개념으로 분류하지 마세요. "
@@ -284,16 +298,17 @@ def tutor_reply(
     )
     # Callers may supply history with or without the current user message.
     prior_history = history[:-1] if history and history[-1].get("sender_type") == "user" and history[-1].get("content") == answer else history
-    generated, ai_provider = generate_with_provider(prompt, subject, prior_history, TutorTurn.model_json_schema())
+    generated, ai_provider = generate_with_provider(prompt, subject, prior_history, ProgressiveTutorTurn.model_json_schema())
     turn = None
     if generated:
         try:
-            turn = TutorTurn.model_validate_json(generated)
+            turn = ProgressiveTutorTurn.model_validate_json(generated)
             apply_assessment(dialogue, turn, answer, {item.source_id for item in contexts})
             if turn.assessment == "understood" and dialogue.assessment != "understood":
                 # Invalid evidence must not move the next question to a new learning stage.
                 turn.next_question = followup
-                dialogue.last_question = followup
+                turn.next_question_goal = "scaffold"
+            turn.next_question = select_followup(dialogue, turn, topic)
             generated = f"{turn.explanation.strip()}\n\n{turn.next_question.strip()}"
             feedback.update({
                 "score": None, "level": {"understood": "이해 확인", "partial": "보완 필요",
@@ -309,7 +324,13 @@ def tutor_reply(
     if not generated:
         ai_provider = "rule"
         dialogue.assessment = "unassessed"
-        dialogue.last_question = followup
+        fallback_turn = ProgressiveTutorTurn(
+            explanation="AI 응답을 생성하지 못했습니다.", next_question=followup,
+            assessment="unassessed", evidence_quote="", reasoning="단계를 유지합니다.",
+            misconception="", source_ids=[], next_question_goal="scaffold",
+        )
+        followup = select_followup(dialogue, fallback_turn, topic)
+        feedback["followup_question"] = followup
         dialogue.transition_reason = "AI 이해 판단을 확인할 수 없어 단계와 핵심 질문을 유지합니다."
         # No keyword/length grade is issued during provider failure.
         feedback["assessment"] = "unassessed"
