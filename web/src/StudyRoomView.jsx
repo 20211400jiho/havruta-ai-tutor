@@ -23,6 +23,14 @@ export default function StudyRoomView({ user }) {
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const messageInputRef = useRef(null);
+
+  useEffect(() => {
+    const el = messageInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [messageInput]);
 
   const load = () => api("/rooms")
     .then((result) => setRooms(result.rooms))
@@ -134,6 +142,12 @@ export default function StudyRoomView({ user }) {
     setMessageInput("");
   };
 
+  const handleMessageKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      sendMessage(event);
+    }
+  };
+
   const deleteRoom = async (room) => {
     if (deletingRoomId !== null) return;
     if (!window.confirm(`“${room.title}” 학습방을 삭제할까요?\n모든 참여자의 방 목록에서 사라지고 그룹 채팅이 종료됩니다. 개인 학습 기록과 정리노트는 유지됩니다.`)) return;
@@ -195,7 +209,7 @@ export default function StudyRoomView({ user }) {
             <div><strong>공동 하브루타 AI 분석</strong><p>두 명 이상이 의견을 남긴 뒤 단원을 선택해 비교·분석합니다.</p></div>
             <CurriculumSelector subject={selectedRoom.subject} preferredGrade={selectedRoom.grade} onSelectionChange={setCurriculumSelection} disabled={analysisLoading} compact />
             <button type="button" onClick={analyzeDiscussion} disabled={analysisLoading || !curriculumSelection?.topic}>{analysisLoading ? "의견 분석 중..." : "AI로 토론 비교하기"}</button>
-            {discussionFeedback && <DiscussionFeedback result={discussionFeedback} />}
+            {discussionFeedback && <DiscussionFeedback result={discussionFeedback} onClose={() => setDiscussionFeedback(null)} />}
           </section>
           <div className="chat-messages">
             {messages.map((message) => {
@@ -213,11 +227,14 @@ export default function StudyRoomView({ user }) {
             <div ref={messagesEndRef} />
           </div>
           <form className="chat-input" onSubmit={sendMessage}>
-            <input
+            <textarea
+              ref={messageInputRef}
               value={messageInput}
               onChange={(event) => setMessageInput(event.target.value)}
+              onKeyDown={handleMessageKeyDown}
               maxLength={5000}
-              placeholder="친구에게 메시지 보내기"
+              rows={1}
+              placeholder="친구에게 메시지 보내기 (Shift+Enter로 줄바꿈)"
               disabled={connectionStatus !== "connected"}
             />
             <button disabled={connectionStatus !== "connected" || !messageInput.trim()}>전송</button>
@@ -258,9 +275,9 @@ export default function StudyRoomView({ user }) {
   );
 }
 
-function DiscussionFeedback({ result }) {
+function DiscussionFeedback({ result, onClose }) {
   const meta = result.response_meta || {};
   const provider = { openai: "OpenAI", rule: "규칙 기반 폴백" }[meta.ai_provider] || "AI";
   const retriever = { chroma: "ChromaDB", lexical: "어휘 검색 폴백", none: "근거 없음" }[meta.retriever] || meta.retriever;
-  return <article className="discussion-feedback"><div className="discussion-meta">참여자 {result.participant_count}명 · {provider} · {retriever}</div><p>{result.summary}</p><details><summary>참여자 의견과 RAG 근거 보기</summary>{result.participant_views.map((view) => <p key={view.user_id}><strong>{view.user_name}</strong>: {view.key_point}</p>)}{(meta.sources || []).map((source) => <p key={source.source_id}><strong>{source.achievement_standard || source.subject}</strong><br />{source.excerpt}</p>)}</details></article>;
+  return <article className="discussion-feedback"><div className="discussion-feedback-header"><div className="discussion-meta">참여자 {result.participant_count}명 · {provider} · {retriever}</div><button type="button" className="discussion-feedback-close" onClick={onClose} aria-label="분석 결과 닫기">×</button></div><p>{result.summary}</p><details><summary>참여자 의견과 RAG 근거 보기</summary>{result.participant_views.map((view) => <p key={view.user_id}><strong>{view.user_name}</strong>: {view.key_point}</p>)}{(meta.sources || []).map((source) => <p key={source.source_id}><strong>{source.achievement_standard || source.subject}</strong><br />{source.excerpt}</p>)}</details></article>;
 }

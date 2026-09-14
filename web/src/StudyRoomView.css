@@ -180,12 +180,16 @@
     gap: 10px;
 }
 
-.chat-input input {
+.chat-input textarea {
     flex: 1;
-    padding: 10px;
+    padding: 10px 14px;
     border: 1px solid #ddd;
-    border-radius: 20px;
+    border-radius: 18px;
     outline: none;
+    resize: none;
+    max-height: 140px;
+    line-height: 1.4;
+    font: inherit;
 }
 
 .chat-input button {
@@ -195,9 +199,10 @@
     padding: 10px 20px;
     border-radius: 20px;
     cursor: pointer;
+    align-self: flex-end;
 }
 
-.chat-input button:disabled, .chat-input input:disabled { opacity: .55; cursor: not-allowed; }
+.chat-input button:disabled, .chat-input textarea:disabled { opacity: .55; cursor: not-allowed; }
 
 @media (max-width: 700px) {
     .study-room-page { padding: 8px; }
@@ -214,6 +219,9 @@
 .collaborative-panel > button:disabled { opacity: .55; cursor: default; }
 .discussion-feedback { margin-top: 12px; padding: 13px; border-radius: 10px; background: #fff; }
 .discussion-feedback > p { white-space: pre-wrap; line-height: 1.6; }
+.discussion-feedback-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.discussion-feedback-close { background: transparent; border: none; padding: 0 4px; font-size: 18px; line-height: 1; color: #64748b; cursor: pointer; }
+.discussion-feedback-close:hover { color: #1e293b; }
 .discussion-meta { margin-bottom: 8px; color: #31549d; font-size: 12px; font-weight: 700; }
 .discussion-feedback details { margin-top: 10px; font-size: 13px; }
 .discussion-feedback summary { cursor: pointer; font-weight: 700; }
