@@ -12,6 +12,7 @@ export default function QuizView() {
   const [result, setResult] = useState(null);
   const [curriculumSelection, setCurriculumSelection] = useState(null);
   const [subject, setSubject] = useState("수학");
+  const [questionCount, setQuestionCount] = useState(3);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -20,10 +21,10 @@ export default function QuizView() {
   useEffect(() => { load(); }, []);
 
   const generate = async () => {
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setNotice("");
     try {
       if (!topic) throw new Error("퀴즈 단원을 선택해주세요.");
-      await api("/quizzes", {
+      const data = await api("/quizzes", {
         method: "POST",
         body: JSON.stringify({
           subject,
@@ -31,9 +32,13 @@ export default function QuizView() {
           unit_code: curriculumSelection.unit.code,
           school_level: curriculumSelection.schoolLevel,
           grade: curriculumSelection.grade,
-          question_count: 3,
+          question_count: questionCount,
         }),
       });
+      const actualCount = data.quiz.total_questions;
+      setNotice(actualCount < questionCount
+        ? `선택한 ${questionCount}문항 중 자료가 충분한 ${actualCount}문항을 생성했어요.`
+        : `${actualCount}문항 퀴즈를 생성했어요.`);
       await load();
     }
     catch (requestError) { setError(requestError.message); }
@@ -76,7 +81,7 @@ export default function QuizView() {
     </div></main>
   );
   return (
-    <main className="content"><div className="quiz-list-header"><div><h2 className="quiz-main-title">2022 교육과정 RAG 퀴즈</h2><p className="quiz-main-sub">과목과 단원을 고르면 해당 단원의 RAG 자료에서만 문제를 생성합니다.</p></div><div className="quiz-subject-action"><label>교과목<select aria-label="퀴즈 과목" value={subject} onChange={(e) => { setSubject(e.target.value); setCurriculumSelection(null); }}>{SUBJECT_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label><button className="btn-generate-quiz" onClick={generate} disabled={loading || !topic}>{loading ? "생성 중..." : "선택한 단원으로 새 퀴즈"}</button></div></div><CurriculumSelector subject={subject} onSelectionChange={setCurriculumSelection} disabled={loading} compact />
+    <main className="content"><div className="quiz-list-header"><div><h2 className="quiz-main-title">2022 교육과정 RAG 퀴즈</h2><p className="quiz-main-sub">과목과 단원, 문항 수를 선택하세요. 해당 단원의 학습 자료에서 문제를 생성합니다.</p></div><div className="quiz-subject-action"><label>교과목<select aria-label="퀴즈 과목" value={subject} disabled={loading} onChange={(e) => { setSubject(e.target.value); setCurriculumSelection(null); }}>{SUBJECT_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label><label>문항 수<select aria-label="퀴즈 문항 수" value={questionCount} disabled={loading} onChange={(e) => setQuestionCount(Number(e.target.value))}>{[3, 5, 10].map((count) => <option key={count} value={count}>{count}문항</option>)}</select></label><button className="btn-generate-quiz" onClick={generate} disabled={loading || !topic}>{loading ? "생성 중..." : `${questionCount}문항 퀴즈 만들기`}</button></div></div><CurriculumSelector subject={subject} onSelectionChange={setCurriculumSelection} disabled={loading} compact />
       {error && <p className="study-error">{error}</p>}{notice && <p role="status">{notice}</p>}<div className="quiz-grid">{quizzes.map((item) => <div key={item.id} className="quiz-history-card"><div className="card-top"><span className="quiz-card-date">{new Date(item.created_at).toLocaleDateString()}</span><span className="quiz-card-count">{item.total_questions}문항</span></div><h3 className="quiz-card-title">{item.title}</h3><p>최고 점수: {item.best_score ?? "미응시"}</p><div className="content-item-actions"><button className="btn-quiz-start" disabled={loading} onClick={() => start(item.id)}>풀기 ➔</button><button className="content-delete" disabled={loading} aria-label={`${item.title} 퀴즈 삭제`} onClick={() => deleteQuiz(item)}>퀴즈 삭제</button></div></div>)}</div>
       {!quizzes.length && !error && <p>새 퀴즈를 생성해보세요.</p>}
     </main>

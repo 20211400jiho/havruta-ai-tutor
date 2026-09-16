@@ -3,7 +3,9 @@
 .auth-brand { color: #4f7df3; font-size: 22px; font-weight: 800; }
 .auth-card h1 { margin: 8px 0 0; font-size: 27px; color: #1e293b; }
 .auth-card p { margin: 0 0 8px; color: #64748b; line-height: 1.55; }
-.auth-card input { padding: 14px 16px; border: 1px solid #dbe3f2; border-radius: 12px; font-size: 15px; }
+.auth-card input, .auth-card select { padding: 14px 16px; border: 1px solid #dbe3f2; border-radius: 12px; font-size: 15px; }
+.auth-grade { display: flex; flex-direction: column; gap: 8px; color: var(--text-primary, #1e293b); font-size: 14px; font-weight: 600; }
+.auth-grade select { width: 100%; min-width: 0; font-family: inherit; color: var(--text-primary, #1e293b); background: var(--input-bg, #fff); }
 .auth-card button { border: 0; border-radius: 12px; padding: 14px; background: #4f7df3; color: white; font-size: 15px; font-weight: 700; cursor: pointer; }
 .auth-card button:disabled { opacity: .6; }
 .auth-card .auth-switch { background: transparent; color: #4f7df3; font-weight: 600; }

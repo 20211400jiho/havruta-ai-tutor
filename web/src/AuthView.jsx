@@ -2,15 +2,24 @@ import { useState } from "react";
 import { api, setToken } from "./api";
 import "./AuthView.css";
 
+const GRADE_OPTIONS = [
+  "중학교 1학년", "중학교 2학년", "중학교 3학년",
+  "고등학교 1학년", "고등학교 2학년", "고등학교 3학년",
+];
+
 export default function AuthView({ onAuthenticated }) {
   const [mode, setMode] = useState("login");
-  const [form, setForm] = useState({ email: "", password: "", name: "", grade: "고등학교 1학년" });
+  const [form, setForm] = useState({ email: "", password: "", name: "", grade: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (event) => {
     event.preventDefault();
     setError("");
+    if (mode === "signup" && !GRADE_OPTIONS.includes(form.grade)) {
+      setError("학년을 선택해 주세요.");
+      return;
+    }
     setLoading(true);
     try {
       const normalized = {
@@ -44,7 +53,13 @@ export default function AuthView({ onAuthenticated }) {
         {mode === "signup" && (
           <>
             <input required autoComplete="name" placeholder="이름" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <input placeholder="학년" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} />
+            <label className="auth-grade" htmlFor="signup-grade">
+              학년
+              <select id="signup-grade" name="grade" required value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })}>
+                <option value="" disabled>학년을 선택해 주세요</option>
+                {GRADE_OPTIONS.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+              </select>
+            </label>
           </>
         )}
         <input required type="email" autoComplete="email" placeholder="이메일 (예: demo@havruta.com)" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
