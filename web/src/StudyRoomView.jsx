@@ -247,7 +247,7 @@ export default function StudyRoomView({ user }) {
   return (
     <main className="study-room-page">
       <div className="room-panel">
-        <header><h2>스터디룸</h2><p>친구와 학습방을 공유하고 실시간으로 토론하세요.</p></header>
+        <header><h2>친구와 토론하기</h2><p>토론방을 만들거나 초대 코드로 참여해 서로의 생각을 나눠보세요.</p></header>
         <div className="room-actions">
           <form onSubmit={createRoom}>
             <h3>새 학습방</h3>

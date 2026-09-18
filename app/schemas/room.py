@@ -20,6 +20,11 @@ class RoomCreateRequest(BaseModel):
 
 
 # 학습방 참여 요청 데이터
+class PersonalRoomRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=100)
+    grade: str = Field(min_length=1, max_length=50)
+
+
 class RoomJoinRequest(BaseModel):
     invite_code: str = Field(
         ...,

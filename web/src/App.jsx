@@ -17,6 +17,7 @@ import {
   THEME_KEY,
 } from "./clientStorage.js";
 import "./Home.css";
+import "./Notebook.css";
 
 class AppErrorBoundary extends Component {
   constructor(props) {
@@ -91,7 +92,7 @@ function App() {
       <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} onLogout={logout} />
       <div className="main-content" style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
         {activeMenu === 0 && <Home setActiveMenu={setActiveMenu} user={user} />}
-        {activeMenu === 1 && <StudyView />}
+        {activeMenu === 1 && <StudyView user={user} />}
         {activeMenu === 2 && <QuizView />}
         {activeMenu === 3 && <NoteView />}
         {activeMenu === 4 && <CalendarView />}

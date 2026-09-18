@@ -13,11 +13,11 @@ import settingIcon from "./assets/setting.png";
 
 const menus = [
   { icon: homeIcon, text: "홈" },
-  { icon: studyIcon, text: "학습하기" },
+  { icon: studyIcon, text: "혼자 학습하기" },
   { icon: quizIcon, text: "퀴즈" },
   { icon: noteIcon, text: "정리노트" },
   { icon: calendarIcon, text: "캘린더" },
-  { icon: roomIcon, text: "스터디룸" },
+  { icon: roomIcon, text: "친구와 토론하기" },
   { icon: mypageIcon, text: "마이페이지" },
   { icon: settingIcon, text: "설정" },
 ];
@@ -25,16 +25,17 @@ const menus = [
 export default function Sidebar({ activeMenu, setActiveMenu, onLogout }) {
   return (
     <aside className="sidebar">
-      <div className="logo">AI Study</div>
+      <div className="logo">하브루타<small>질문으로 채우는 학습 노트</small></div>
       <ul className="menu">
         {menus.map((menu, index) => (
           <li
             key={index}
             className={activeMenu === index ? "active" : ""}
-            onClick={() => setActiveMenu(index)}
           >
-            <img src={menu.icon} alt={menu.text} />
-            {menu.text}
+            <button type="button" onClick={() => setActiveMenu(index)} aria-current={activeMenu === index ? "page" : undefined}>
+              <img src={menu.icon} alt="" />
+              {menu.text}
+            </button>
           </li>
         ))}
       </ul>

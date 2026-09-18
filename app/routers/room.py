@@ -9,7 +9,7 @@ from app.database.connection import get_db
 from app.dependencies import get_current_user
 from app.models.learning import LearningRoom, RoomMember
 from app.models.user import User
-from app.schemas.room import RoomCreateRequest, RoomJoinRequest
+from app.schemas.room import PersonalRoomRequest, RoomCreateRequest, RoomJoinRequest
 from app.services.connection_manager import manager
 
 
@@ -46,6 +46,7 @@ def list_rooms(user: User = Depends(get_current_user), db: Session = Depends(get
         .outerjoin(RoomMember)
         .filter(or_(LearningRoom.owner_id == user.id, RoomMember.user_id == user.id))
         .filter(LearningRoom.status == "active")
+        .filter(LearningRoom.max_members >= 2)
         .order_by(LearningRoom.created_at.desc())
         .distinct()
         .all()
@@ -75,6 +76,32 @@ def create_room(
     return {"message": "학습방이 생성되었습니다.", "room": room_dict(room)}
 
 
+@router.post("/personal")
+def personal_room(
+    request: PersonalRoomRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    # Capacity 1 is reserved for individual learning, not collaborative rooms.
+    subject, grade = request.subject.strip(), request.grade.strip()
+    if not subject or not grade:
+        raise HTTPException(status_code=422, detail="과목과 학년을 선택해주세요.")
+    room = db.query(LearningRoom).filter_by(
+        owner_id=user.id, subject=subject, grade=grade, max_members=1, status="active",
+    ).first()
+    if room is None:
+        room = LearningRoom(
+            title=f"나의 {subject} 학습", subject=subject, grade=grade,
+            owner_id=user.id, invite_code=create_invite_code(db), max_members=1,
+        )
+        db.add(room)
+        db.flush()
+        db.add(RoomMember(room_id=room.id, user_id=user.id))
+        db.commit()
+        db.refresh(room)
+    return {"room": {"id": room.id}}
+
+
 @router.post("/join")
 def join_room(
     request: RoomJoinRequest,
@@ -84,6 +111,8 @@ def join_room(
     room = db.query(LearningRoom).filter(LearningRoom.invite_code == request.invite_code.upper()).first()
     if room is None:
         raise HTTPException(status_code=404, detail="초대 코드에 해당하는 학습방이 없습니다.")
+    if room.max_members == 1:
+        raise HTTPException(status_code=403, detail="개인 학습 공간에는 참여할 수 없습니다.")
     if room.status != "active":
         raise HTTPException(status_code=409, detail="종료된 학습방입니다.")
     existing = db.query(RoomMember).filter_by(room_id=room.id, user_id=user.id).first()

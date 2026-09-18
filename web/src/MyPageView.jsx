@@ -4,7 +4,9 @@ import "./MyPageView.css";
 
 export default function MyPageView({ user }) {
   const [dashboard, setDashboard] = useState(null);
-  useEffect(() => { api("/dashboard/me").then(setDashboard).catch(() => {}); }, []);
+  const [loadError, setLoadError] = useState(false);
+  useEffect(() => { api("/dashboard/me").then(setDashboard).catch(() => setLoadError(true)); }, []);
+  const recentRecords = (dashboard?.recent_records || []).slice(0, 5);
   const summary = dashboard?.summary || { completed_sessions: 0, completed_units: 0, completed_quizzes: 0, explanation_level: "학습 전" };
   return (
     <main className="my-page-container">
@@ -23,17 +25,24 @@ export default function MyPageView({ user }) {
           <p>새 학습의 목표 확인과 복습 제안은 정리노트에서 확인하세요.</p>
         </div>
       </div>
-      <div className="badge-section"><h3>최근 학습 기록</h3><div className="badge-list">
-        {(dashboard?.recent_records || []).map((record) => <div key={record.id} className="badge-item">🏅 {record.topic || "하브루타 학습"} · {scoreLevel(record.average_score)}</div>)}
-        {!dashboard?.recent_records?.length && <p>완료한 학습 세션이 아직 없습니다.</p>}
-      </div></div>
+      <section className="mypage-recent">
+        <h3>최근 학습 기록</h3>
+        <ul className="mypage-recent-list">
+          {recentRecords.map((record) => <li key={record.id}>
+            <span>{record.topic || "하브루타 학습"}</span>
+            <span className="mypage-record-date">{formatRecordDate(record.completed_at)}</span>
+          </li>)}
+        </ul>
+        {loadError ? <p>학습 기록을 불러오지 못했어요.</p>
+          : !dashboard ? <p>학습 기록을 불러오는 중이에요.</p>
+          : !recentRecords.length && <p>아직 완료한 학습이 없어요.</p>}
+      </section>
     </main>
   );
 }
 
-function scoreLevel(score) {
-  if (score == null) return "설명 수준 미확인";
-  if (score >= 80) return "기존 규칙 평가: 우수";
-  if (score >= 60) return "기존 규칙 평가: 충분함";
-  return "기존 규칙 평가: 보완 필요";
+function formatRecordDate(value) {
+  if (!value) return "날짜 미상";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "날짜 미상" : date.toLocaleDateString("ko-KR");
 }

@@ -8,9 +8,9 @@ function findBy(items, key, value) {
 
 function makeSelection(catalog, choices = {}, preferredGrade = "") {
   const levels = catalog?.school_levels || [];
-  const preferredLevelName = preferredGrade.includes("고등")
+  const preferredLevelName = /고등|^고\s*[1-3]/.test(preferredGrade)
     ? "고등학교"
-    : preferredGrade.includes("중등") || preferredGrade.includes("중학교")
+    : /중등|중학교|^중\s*[1-3]/.test(preferredGrade)
       ? "중학교"
       : "";
   const level = findBy(levels, "name", choices.schoolLevel)
@@ -18,7 +18,7 @@ function makeSelection(catalog, choices = {}, preferredGrade = "") {
     || levels[0];
   const grades = level?.grades || [];
   const grade = findBy(grades, "name", choices.grade)
-    || grades.find((item) => preferredGrade.includes(item.name))
+    || grades.find((item) => preferredGrade.includes(item.name) || item.name === `${preferredGrade.match(/[1-3]/)?.[0]}학년`)
     || grades[0];
   const units = grade?.units || [];
   const unit = findBy(units, "code", choices.unitCode) || units[0];
@@ -81,7 +81,8 @@ export default function CurriculumSelector({
 
   if (subject && !isCurrent) return <p className="curriculum-state">2022 교육과정 단원을 불러오는 중...</p>;
   if (error) return <p className="curriculum-state error">{error}</p>;
-  if (!catalog || !selection) return <p className="curriculum-state">선택 가능한 RAG 단원이 없습니다.</p>;
+  if (!subject) return <p className="curriculum-state">먼저 학습할 과목을 선택해주세요.</p>;
+  if (!catalog || !selection) return <p className="curriculum-state">이 과목에 준비된 학습 단원이 없습니다. 다른 과목을 선택해주세요.</p>;
 
   return (
     <div className={`curriculum-selector${compact ? " compact" : ""}`}>

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import aiImage from "./assets/study_ai.png";
 import CurriculumSelector from "./CurriculumSelector";
 import LearningReport from "./LearningReport";
 import { ACTIVE_SESSION_KEY, getClientValue, removeClientValue, setClientValue } from "./clientStorage";
 import "./StudyView.css";
 
-export default function StudyView() {
-  const [rooms, setRooms] = useState([]);
-  const [roomId, setRoomId] = useState("");
+const SUBJECTS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
+
+export default function StudyView({ user }) {
+  const [selectedSubject, setSelectedSubject] = useState("");
   const [curriculumSelection, setCurriculumSelection] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [activeSession, setActiveSession] = useState(null);
@@ -24,27 +24,21 @@ export default function StudyView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
-  const selectedRoom = rooms.find((room) => String(room.id) === roomId);
-  const selectedSubject = selectedRoom?.subject || "";
   const topic = curriculumSelection?.subject === selectedSubject ? curriculumSelection.topic : "";
   const displayedTopic = activeSession?.topic || topic;
   const currentRagStatus = ragStatus?.subject === selectedSubject ? ragStatus : null;
 
   useEffect(() => {
-    Promise.all([api("/rooms"), api("/sessions")]).then(async ([roomResult, sessionResult]) => {
-      const loadedRooms = Array.isArray(roomResult.rooms) ? roomResult.rooms : [];
+    api("/sessions").then(async (sessionResult) => {
       const resumable = (Array.isArray(sessionResult.sessions) ? sessionResult.sessions : [])
         .filter((session) => session.state !== "finished");
-      setRooms(loadedRooms);
       setOpenSessions(resumable);
-      if (loadedRooms.length) setRoomId(String(loadedRooms[0].id));
       const storedId = Number(getClientValue(ACTIVE_SESSION_KEY));
       const storedSession = resumable.find((session) => session.id === storedId);
       if (storedSession) {
         const restored = await api(`/sessions/${storedSession.id}`);
         setSessionId(restored.session.id);
         setActiveSession(restored.session);
-        setRoomId(String(restored.session.room_id));
         setMessages(restored.session.messages || []);
         setMessageMeta(metadataByMessage(restored.session.messages || []));
         setResponseMeta(restored.response_meta || null);
@@ -73,15 +67,18 @@ export default function StudyView() {
   }, [selectedSubject]);
 
   const startSession = async () => {
-    if (!roomId) return setError("스터디룸 메뉴에서 학습방을 먼저 만들어주세요.");
     if (!topic) return setError("학습할 단원을 선택해주세요.");
     if (currentRagStatus?.available === false) return setError("선택한 과목의 RAG 자료가 아직 준비되지 않았습니다.");
     setLoading(true); setError(""); setFeedback(null);
     try {
+      const personal = await api("/rooms/personal", {
+        method: "POST",
+        body: JSON.stringify({ subject: selectedSubject, grade: `${curriculumSelection.schoolLevel} ${curriculumSelection.grade}` }),
+      });
       const result = await api("/sessions", {
         method: "POST",
         body: JSON.stringify({
-          room_id: Number(roomId),
+          room_id: personal.room.id,
           topic,
           unit_code: curriculumSelection.unit.code,
           school_level: curriculumSelection.schoolLevel,
@@ -114,7 +111,6 @@ export default function StudyView() {
       }
       setSessionId(result.session.id);
       setActiveSession(result.session);
-      setRoomId(String(result.session.room_id));
       setLearningReport(result.session.learning_report || null);
       setCompletedReport(null);
       setMessages(result.session.messages);
@@ -171,19 +167,19 @@ export default function StudyView() {
   if (!sessionId) return (
     <main className={`study-start-card${completedReport ? " study-start-card--with-report" : ""}`}>
       {completedReport && <section className="study-completed-report" aria-label="지난 학습 결과"><LearningReport report={completedReport} finished /></section>}
-      <span className="study-kicker">{completedReport ? "중·고등학생을 위한 새로운 학습" : "중·고등학생을 위한 AI 하브루타 튜터"}</span>
-      <h2>{completedReport ? "다른 단원도 이어서 학습해 볼까요?" : "설명하고, 질문받고, 다시 생각해보세요."}</h2>
-      <label>학습방<select value={roomId} onChange={(e) => { setRoomId(e.target.value); setCurriculumSelection(null); }}><option value="">학습방 선택</option>{rooms.map((room) => <option key={room.id} value={room.id}>{room.title} · {room.subject || "일반"}</option>)}</select></label>
-      <label>교과목<input value={selectedRoom?.subject || "학습방을 선택하세요"} readOnly /></label>
+      <span className="study-kicker">혼자 학습하기 · 중·고등학생</span>
+      <h2>{completedReport ? "다음으로 탐구할 단원은?" : "오늘은 무엇을 알아볼까요?"}</h2>
+      <p className="study-intro">단원을 고르고 내 생각을 설명해보세요. AI가 질문을 이어갑니다.</p>
+      <label>과목<select value={selectedSubject} disabled={loading} onChange={(e) => { setSelectedSubject(e.target.value); setCurriculumSelection(null); }}><option value="">과목 선택</option>{SUBJECTS.map((subject) => <option key={subject}>{subject}</option>)}</select></label>
       <CurriculumSelector
         subject={selectedSubject}
-        preferredGrade={selectedRoom?.grade || ""}
+        preferredGrade={user?.grade || ""}
         onSelectionChange={setCurriculumSelection}
         disabled={loading}
       />
       {openSessions.length > 0 && <section className="resume-sessions"><strong>이어할 학습</strong>{openSessions.slice(0, 3).map((session) => <button type="button" key={session.id} onClick={() => resumeSession(session)} disabled={loading}><span>{session.topic || "하브루타 학습"}</span><small>{session.school_level || ""} {session.grade || ""} · 대화 이어가기</small></button>)}</section>}
       {currentRagStatus && !currentRagStatus.available && (
-        <p className="rag-notice">현재 {currentRagStatus.curriculum_year} 교육과정의 {currentRagStatus.subject} RAG 자료가 등록되지 않아 학습을 시작할 수 없습니다.</p>
+        <p className="rag-notice">{currentRagStatus.subject} 학습 자료를 준비 중입니다. 다른 과목을 선택해주세요.</p>
       )}
       {error && <p className="study-error">{error}</p>}
       <button onClick={startSession} disabled={loading || !topic || currentRagStatus?.available === false}>{loading ? "준비 중..." : "선택한 단원으로 학습 시작"}</button>
@@ -192,24 +188,24 @@ export default function StudyView() {
 
   return (
     <div className="study-chat-container">
-      <header className="study-chat-header"><div><strong>{displayedTopic}</strong><span> · {currentRagStatus?.available ? `${currentRagStatus.curriculum_year} 성취기준 연계 RAG 기반` : "일반 하브루타"} 학습</span><small>현재 단계: {responseMeta?.stage || "개념 설명"}</small></div><button onClick={finish} disabled={loading}>학습 종료</button></header>
+      <header className="study-chat-header"><div><span className="study-kicker">나의 학습 노트</span><strong>{displayedTopic}</strong><small>{responseMeta?.stage || "개념 설명"} · AI와 생각 나누기</small></div><button onClick={finish} disabled={loading}>마치고 돌아보기</button></header>
       <LearningReport report={learningReport} />
       <div className="chat-messages">
         {messages.map((message, index) => (
           <div key={`${message.sender_type}-${message.id ?? index}`} className={`message-row ${message.sender_type}`}>
-            {message.sender_type === "ai" && <img src={aiImage} alt="AI" className="ai-avatar" />}
             <div className="message-content-wrap">
+              <span className="message-author">{message.sender_type === "ai" ? "하브루타 · AI" : "나의 생각"}</span>
               <div className="bubble"><span>{typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다."}</span></div>
               {message.sender_type === "ai" && messageMeta[message.id] && <EvidencePanel meta={messageMeta[message.id]} />}
             </div>
           </div>
         ))}
-        {loading && <div className="message-row ai"><img src={aiImage} alt="AI" className="ai-avatar" /><div className="bubble"><span>생각을 정리하고 있어요...</span></div></div>}
+        {loading && <div className="message-row ai" role="status"><div className="bubble"><span>생각을 정리하고 있어요...</span></div></div>}
         <div ref={bottomRef} />
       </div>
       {feedback && <div className="feedback-strip"><div><strong>설명 수준 {formatFeedback(feedback.level, "분석 중")}</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div>{feedback.assessment ? <div className="rubric-scores"><span>AI의 잠정 피드백 · 정답률이 아닙니다</span></div> : <div className="rubric-scores"><span>개념 {feedback.rubric?.concept ?? "-"}/40</span><span>근거 {feedback.rubric?.reasoning ?? "-"}/30</span><span>명료성 {feedback.rubric?.clarity ?? "-"}/20</span><span>참여 {feedback.rubric?.engagement ?? "-"}/10</span></div>}</div>}
       {error && <p className="study-error">{error}</p>}
-      <form className="chat-input-bar" onSubmit={send}><input value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 풀이 과정을 입력하세요..." /><button className="send-btn" disabled={loading || !input.trim()} aria-label="전송">➤</button></form>
+      <form className="chat-input-bar" onSubmit={send}><textarea rows={2} aria-label="내 생각과 풀이 과정" value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 그 이유를 적어보세요." /><button className="send-btn" disabled={loading || !input.trim()}>보내기</button></form>
     </div>
   );
 }
@@ -217,7 +213,7 @@ export default function StudyView() {
 function EvidencePanel({ meta }) {
   const providerLabel = { openai: "OpenAI 생성", rule: "규칙 기반 폴백", question_template: "RAG 질문 구성" }[meta.ai_provider] || "응답 구성";
   const retrieverLabel = { chroma: "ChromaDB 의미 검색", lexical: "어휘 검색 폴백", none: "검색 근거 없음" }[meta.retriever] || meta.retriever;
-  return <details className="evidence-panel"><summary>{providerLabel} · {retrieverLabel} · 참고 자료 {meta.sources?.length || 0}개</summary><div className="evidence-list">{(meta.sources || []).map((source) => <article key={source.source_id}><strong>{source.achievement_standard || `${source.subject || "교과"} 자료`}</strong><p>{source.excerpt}</p><small>{source.school_level || ""} {source.grade || ""} · {{ bm25_rrf: "BM25 재정렬", cross_encoder: "Cross-Encoder 재정렬" }[source.reranker] || "검색 자료"}</small></article>)}{!meta.sources?.length && <p>현재 질문에 대한 검색 자료를 찾지 못했습니다. 답변의 사실 여부는 별도 확인이 필요합니다.</p>}{meta.dialogue_state && <p>학습 진행: {meta.dialogue_state.transition_reason}</p>}</div></details>;
+  return <details className="evidence-panel"><summary>{meta.sources?.length ? `참고한 학습 자료 ${meta.sources.length}개` : "참고 자료 없음 · 답변 확인 필요"}{meta.ai_provider === "rule" ? " · 기본 안내" : ""}</summary><div className="evidence-list">{(meta.sources || []).map((source) => <article key={source.source_id}><strong>{source.achievement_standard || `${source.subject || "교과"} 자료`}</strong><p>{source.excerpt}</p><small>{source.school_level || ""} {source.grade || ""}</small></article>)}{!meta.sources?.length && <p>현재 질문에 대한 검색 자료를 찾지 못했습니다. 답변의 사실 여부는 별도 확인이 필요합니다.</p>}<small>응답 정보: {providerLabel} · {retrieverLabel}</small></div></details>;
 }
 
 function formatFeedback(value, fallback) {
