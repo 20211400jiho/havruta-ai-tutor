@@ -57,6 +57,8 @@ class DialogueState(BaseModel):
     hint_count: int = Field(default=0, ge=0, le=10000)
     last_intent: str = "start"
     assessment: str = "unassessed"
+    assessment_issue: str = ""
+    assessment_message: str = ""
     misconception: str = Field(default="", max_length=600)
     evidence: list[dict] = Field(default_factory=list, max_length=5)
     transition_reason: str = "아직 이해를 확인하지 않았습니다."
@@ -103,6 +105,11 @@ def classify_intent(answer: str) -> str:
         return "hint"
     if normalized in {"응", "네", "예", "ㅇㅇ", "알겠어", "알겠습니다", "그래", "맞아", "알겠어요"}:
         return "acknowledgement"
+    # Tentative explanations are answer candidates, not automatic passes.
+    if re.search(r"(때문|라고생각|라고봐|라는뜻|아서|어서|으니까|이니까).+(아닌가요|맞나요|맞지|맞을까)$", normalized):
+        return "answer"
+    if re.search(r"(때문|것|거|게)아닌가요$", normalized):
+        return "answer"
     if ("?" in answer or "？" in answer
             or (normalized.startswith("왜") and not normalized.startswith("왜냐하면"))
             or normalized.startswith(("어떻게", "무슨", "뭐야", "뭔뜻"))
@@ -128,9 +135,14 @@ def prepare_state(history: list[dict], topic: str, answer: str) -> DialogueState
 
 
 def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_ids: set[str]) -> None:
+    state.assessment_issue = ""
+    state.assessment_message = ""
     state.assessment = turn.assessment if state.last_intent == "answer" else "unassessed"
     supported = bool(turn.source_ids) and set(turn.source_ids).issubset(source_ids)
-    quoted = bool(turn.evidence_quote.strip()) and turn.evidence_quote in answer
+    # Normalize whitespace only; never accept a paraphrase or remove negation.
+    quote = re.sub(r"\s+", " ", turn.evidence_quote).strip()
+    normalized_answer = re.sub(r"\s+", " ", answer).strip()
+    quoted = bool(quote) and quote in normalized_answer
     # Choosing an option can establish recall, but not reasoning or transfer.
     choice_only = bool(re.fullmatch(r"\s*(?:[1-9]|[①②③④⑤⑥⑦⑧⑨])\s*(?:번)?[.!]?\s*", answer))
     if choice_only and state.stage != STAGES[0] and turn.assessment == "understood":
@@ -142,7 +154,7 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
     if state.last_intent == "answer" and turn.assessment == "understood" and quoted and supported:
         # Updating a final-stage answer must not evict earlier-stage evidence.
         state.evidence = ([item for item in state.evidence if item.get("stage") != state.stage] + [{
-            "stage": state.stage, "quote": turn.evidence_quote,
+            "stage": state.stage, "quote": quote,
             "question": state.last_question,
             "reasoning": turn.reasoning, "source_ids": turn.source_ids,
             "assessment_provider": "openai", "verified_by_human": False,
@@ -154,8 +166,24 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
         state.stage_turns = 0
         state.misconception = ""
         state.transition_reason = "학생 인용과 검색 출처가 있는 AI 이해 판단에 따라 한 단계 진행합니다."
+        state.assessment_message = "설명과 참고 자료를 확인해 현재 항목을 체크했어요."
     elif turn.assessment == "understood" and state.assessment != "partial":
         state.assessment = "unassessed"
+    if state.last_intent != "answer":
+        state.assessment_issue = "not_answer"
+        state.assessment_message = "지금은 질문이나 도움 요청에 답하는 중이에요. 이해한 내용을 설명하면 확인할게요."
+    elif state.assessment == "partial":
+        state.assessment_issue = "needs_explanation"
+        state.assessment_message = "설명을 조금 더 확인해야 해요. " + turn.reasoning
+    elif state.assessment == "misconception":
+        state.assessment_issue = "misconception"
+        state.assessment_message = "다시 살펴볼 부분이 있어요. " + (turn.misconception or turn.reasoning)
+    elif turn.assessment == "understood" and state.assessment == "unassessed":
+        state.assessment_issue = "source_validation" if not supported else "quote_validation"
+        state.assessment_message = "평가에 필요한 출처 또는 답변 인용을 확인하지 못했어요. 오답이라는 뜻은 아니에요."
+    elif state.assessment == "unassessed":
+        state.assessment_issue = "unassessed"
+        state.assessment_message = "아직 이해 여부를 판단하지 못했어요. " + turn.reasoning
     state.last_question = turn.next_question
 
 
@@ -226,6 +254,8 @@ def learning_report(history: list[dict], topic: str) -> dict:
         "topic": topic, "learning_goal": state.learning_goal or state.focus_question or topic,
         "stage": state.stage, "objectives": objectives,
         "checked_count": len(evidence), "total_count": len(STAGES),
+        "assessment_issue": state.assessment_issue,
+        "assessment_message": state.assessment_message,
         "first_explanation": answers[0] if answers else None,
         "latest_explanation": answers[-1] if answers else None,
         "has_comparison": len(answers) >= 2,

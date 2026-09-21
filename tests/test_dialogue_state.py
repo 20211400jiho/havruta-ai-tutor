@@ -1,6 +1,6 @@
 import pytest
 
-from app.rag.dialogue import DialogueState, TutorTurn, prepare_state, restore_state, apply_assessment
+from app.rag.dialogue import DialogueState, TutorTurn, ProgressiveTutorTurn, prepare_state, restore_state, apply_assessment
 from app.rag import tutor
 from app.rag.retriever import SearchResult
 
@@ -12,8 +12,8 @@ def model_turn(**changes):
     values = dict(explanation="useful은 도움, convenient는 이용의 편리함에 초점을 둡니다.",
                   next_question="도움이 되는 설명에는 어떤 단어가 어울릴까요?",
                   assessment="partial", evidence_quote="", reasoning="두 표현의 차이를 확인합니다.",
-                  misconception="", source_ids=["english-1"])
-    return TutorTurn(**{**values, **changes})
+                  misconception="", source_ids=["english-1"], next_question_goal="reason")
+    return ProgressiveTutorTurn(**{**values, **changes})
 
 
 def history_for(state):

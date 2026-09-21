@@ -1,5 +1,6 @@
 import logging
 import json
+import time
 
 from openai import OpenAI, OpenAIError
 from sqlalchemy.orm import Session
@@ -21,13 +22,14 @@ def _openai_generate(
     subject: str = "일반",
     conversation_history: list[dict] | None = None,
     response_schema: dict | None = None,
+    timeout_seconds: float | None = None,
 ) -> str | None:
     if not settings.openai_api_key:
         return None
     try:
         client = OpenAI(
             api_key=settings.openai_api_key,
-            timeout=settings.openai_timeout_seconds,
+            timeout=timeout_seconds or settings.openai_timeout_seconds,
             max_retries=0,
         )
         prior_messages = []
@@ -76,9 +78,10 @@ def generate_with_provider(
     subject: str = "일반",
     conversation_history: list[dict] | None = None,
     response_schema: dict | None = None,
+    timeout_seconds: float | None = None,
 ) -> tuple[str | None, str]:
     """Generate text and expose the provider actually used for honest UI status."""
-    generated = _openai_generate(prompt, subject, conversation_history, response_schema)
+    generated = _openai_generate(prompt, subject, conversation_history, response_schema, timeout_seconds)
     if generated:
         return generated.strip(), "openai"
     return None, "rule"
@@ -278,7 +281,9 @@ def tutor_reply(
         "핵심을 직접 설명하고 생활 사례의 일부를 학생이 설명하게 하세요. 학생 질문에는 먼저 답하세요. "
         "같은 정답을 객관식→빈칸→단답으로 바꾸는 반복은 금지합니다. "
         "같은 단계가 3턴 이상이면 정답 명칭을 재질문하지 말고 풀이가 있는 구체적인 예시와 작은 이유 질문을 주세요. "
-        "단순 동의, 질문, 힌트 요청은 이해 증거가 아니므로 unassessed로 평가하세요. "
+        "단순 동의, 설명 없는 질문, 힌트 요청은 이해 증거가 아니므로 unassessed로 평가하세요. "
+        "질문형 어미라도 학생이 자신의 설명과 이유를 제시했다면 그 내용을 평가하세요. "
+        "직전 질문에 대한 올바른 생활 사례나 이유로 현재 개념 이해를 확인할 수 있다면 정의 암기를 다시 요구하지 마세요. "
         "학생이 현재 질문의 핵심을 올바르게 설명한 경우만 understood로 판단하고 그 외에는 "
         "partial/misconception/unassessed를 사용하세요. 문장 길이나 키워드만으로 평가하지 마세요. "
         "학생이 이유를 설명했다면 최초의 명칭 문제로 돌아가지 마세요. "
@@ -298,7 +303,40 @@ def tutor_reply(
     )
     # Callers may supply history with or without the current user message.
     prior_history = history[:-1] if history and history[-1].get("sender_type") == "user" and history[-1].get("content") == answer else history
+    generation_started = time.monotonic()
     generated, ai_provider = generate_with_provider(prompt, subject, prior_history, ProgressiveTutorTurn.model_json_schema())
+    baseline = dialogue.model_copy(deep=True)
+    repair_issue = ""
+    # Validate on a copy: a retry must never advance two stages for one answer.
+    for attempt in range(2):
+        if not generated:
+            break
+        try:
+            candidate = ProgressiveTutorTurn.model_validate_json(generated)
+            trial = baseline.model_copy(deep=True)
+            apply_assessment(trial, candidate, answer, {item.source_id for item in contexts})
+            repair_issue = trial.assessment_issue if trial.assessment_issue in {"source_validation", "quote_validation"} else ""
+        except (ValidationError, ValueError):
+            repair_issue = "invalid_response"
+        remaining = min(15.0, 55.0 - (time.monotonic() - generation_started))
+        if not repair_issue or attempt == 1 or remaining < 2:
+            break
+        logger.info("Retrying tutor assessment validation: %s", repair_issue)
+        repair_prompt = (
+            prompt + "\n\n평가 처리 재검토: " + repair_issue
+            + "\n학생에게 답을 다시 요구하지 말고 위 최신 답변을 다시 평가하세요. "
+            "evidence_quote에는 최신 답변의 연속된 구절을 그대로 복사하고, "
+            "source_ids에는 위 검색 자료의 실제 source_id만 쓰세요. "
+            "출처나 이해 증거가 없으면 만들어내지 말고 unassessed로 반환하세요. "
+            "explanation은 assessment와 일치시켜주세요. 전체 JSON을 반환하세요."
+        )
+        repaired, repaired_provider = generate_with_provider(
+            repair_prompt, subject, prior_history, ProgressiveTutorTurn.model_json_schema(), remaining,
+        )
+        if repaired:
+            generated, ai_provider = repaired, repaired_provider
+        else:
+            break
     turn = None
     if generated:
         try:
@@ -308,8 +346,15 @@ def tutor_reply(
                 # Invalid evidence must not move the next question to a new learning stage.
                 turn.next_question = followup
                 turn.next_question_goal = "scaffold"
-            turn.next_question = select_followup(dialogue, turn, topic)
-            generated = f"{turn.explanation.strip()}\n\n{turn.next_question.strip()}"
+                turn.explanation = dialogue.assessment_message
+            if dialogue.assessment_issue in {"source_validation", "quote_validation"}:
+                # A processing failure is not a reason to ask the student to repeat an answer.
+                turn.next_question = baseline.last_question
+                dialogue.last_question = baseline.last_question
+                generated = dialogue.assessment_message + " 입력한 설명은 저장했어요."
+            else:
+                turn.next_question = select_followup(dialogue, turn, topic)
+                generated = f"{turn.explanation.strip()}\n\n{turn.next_question.strip()}"
             feedback.update({
                 "score": None, "level": {"understood": "이해 확인", "partial": "보완 필요",
                     "misconception": "개념 교정", "unassessed": "확인 중"}[dialogue.assessment],
@@ -324,6 +369,8 @@ def tutor_reply(
     if not generated:
         ai_provider = "rule"
         dialogue.assessment = "unassessed"
+        dialogue.assessment_issue = "invalid_response" if generated else (repair_issue or "provider_unavailable")
+        dialogue.assessment_message = "AI 평가를 완료하지 못했어요. 답변은 저장했으며, 오답으로 처리하지 않습니다."
         fallback_turn = ProgressiveTutorTurn(
             explanation="AI 응답을 생성하지 못했습니다.", next_question=followup,
             assessment="unassessed", evidence_quote="", reasoning="단계를 유지합니다.",

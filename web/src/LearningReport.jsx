@@ -20,6 +20,7 @@ export default function LearningReport({ report, finished = false }) {
 
         <section className="learning-report-objectives" aria-label="단계별 확인 기록">
           <h3>단계별 확인 기록</h3>
+          {report.assessment_message && <p className="learning-report-empty" role="status">{report.assessment_message}</p>}
           {checked === 0 && <p className="learning-report-empty">아직 AI가 이해를 확인한 항목이 없어요. 틀렸다는 뜻은 아니에요.</p>}
           <ol className="learning-report-steps">
             {report.objectives.map((item, index) => (
@@ -31,7 +32,7 @@ export default function LearningReport({ report, finished = false }) {
                     <span className="learning-report-status">{item.status === "ai_checked" ? "AI 확인" : "아직 확인 전"}</span>
                   </div>
                   <p>{item.description}</p>
-                  {finished && item.evidence_quote && <blockquote><span>확인에 사용된 내 설명</span>{item.evidence_quote}</blockquote>}
+                  {item.evidence_quote && <blockquote><span>확인에 사용된 내 설명</span>{item.evidence_quote}</blockquote>}
                 </div>
               </li>
             ))}
