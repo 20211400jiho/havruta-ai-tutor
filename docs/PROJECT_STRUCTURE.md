@@ -1,13 +1,15 @@
 # RAG 중심 프로젝트 구조
 
-프론트엔드·백엔드 최상위 분리를 되돌리고, 자료·RAG 핵심·API·화면이 한눈에 보이도록 정리했다. 기능과 API 동작은 유지하며 코드 이동과 import·경로만 변경했다.
+자료·RAG 핵심·API·화면을 역할별로 구분한 프로젝트 구조입니다. 설치와 주요 기능은 [프로젝트 README](../README.md)를 참고하세요.
 
 ```text
 havruta-ai-tutor/
 ├── app/                       # 애플리케이션
 │   ├── rag/                   # RAG 핵심
 │   │   ├── retriever.py        # 자료 인덱싱·임베딩·벡터/어휘 검색
+│   │   ├── reranker.py         # 검색 후보 BM25·RRF 재정렬
 │   │   ├── tutor.py            # 프롬프트·대화 흐름·OpenAI 응답
+│   │   ├── dialogue.py         # 대화 의도·학습 단계·후속 질문 관리
 │   │   └── curriculum.py       # 과목·학년·단원 카탈로그
 │   ├── resources/             # 교육과정 카탈로그 JSON
 │   ├── routers/               # 인증·학습·RAG·채팅 API

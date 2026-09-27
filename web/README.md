@@ -7,8 +7,8 @@ FastAPI 백엔드와 연결되는 React/Vite 프런트엔드입니다. 화면에
 저장소 루트에서 `cd web`로 이동한 뒤 실행합니다.
 
 ```bash
-npm install
-cp .env.example .env
+npm ci
+test -f .env || cp .env.example .env
 npm run dev -- --host 127.0.0.1
 ```
 
@@ -29,6 +29,8 @@ npm run build
 ```
 
 `dist/`와 `node_modules/`는 생성물이므로 Git에 포함하지 않습니다.
+
+`VITE_*` 값은 브라우저에 공개됩니다. API 키·비밀번호는 넣지 마세요. 전체 설치와 데이터 준비는 [프로젝트 README](../README.md)를 참고하세요.
 
 ## 코드 탐색
 
