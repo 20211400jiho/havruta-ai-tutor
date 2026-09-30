@@ -20,7 +20,7 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 
 COPY app ./app
 COPY data ./data
-COPY scripts ./scripts
+COPY scripts/verify_chroma.py scripts/migrate_schema.py ./scripts/
 COPY main.py ./
 
 EXPOSE 8000

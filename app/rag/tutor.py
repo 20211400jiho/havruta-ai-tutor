@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from pydantic import ValidationError
 
 from app.database.config import settings
-from app.rag.retriever import SearchResult, search, tokenize
+from app.rag.retriever import SearchResult, search
 from app.rag.dialogue import (
     ProgressiveTutorTurn, STAGES, STAGE_GOALS, QUESTION_GOALS,
-    restore_state, prepare_state, apply_assessment, classify_intent, select_followup,
+    restore_state, prepare_state, apply_assessment, select_followup,
 )
 
 
@@ -107,10 +107,6 @@ def source_summary(result: SearchResult) -> dict:
     }
 
 
-def is_uncertain_answer(answer: str) -> bool:
-    return classify_intent(answer) == "hint"
-
-
 def conversation_stage(conversation_history: list[dict]) -> str:
     return restore_state(conversation_history).stage
 
@@ -147,50 +143,6 @@ def initial_question(
         question = contexts[0].metadata["question"]
         return f"오늘은 ‘{topic}’을 함께 탐구해볼게요. 먼저 생각을 말해보세요.\n\n{question}", contexts
     return f"오늘은 ‘{topic}’을 하브루타 방식으로 공부해볼게요. 이 주제에서 이미 알고 있는 내용을 설명해줄래요?", []
-
-
-def evaluate_answer(answer: str, context: SearchResult | None) -> dict:
-    answer_tokens = tokenize(answer)
-    expected = context.metadata.get("answer", "") if context else ""
-    expected_tokens = tokenize(expected)
-    overlap = len(answer_tokens & expected_tokens)
-    overlap_ratio = overlap / max(1, min(len(expected_tokens), 8))
-    concept = round(min(40, overlap_ratio * 100)) if expected_tokens else min(20, len(answer_tokens) * 3)
-    reasoning_markers = ("때문", "따라서", "그러므로", "즉", "예를", "가정", "조건", "므로")
-    reasoning = min(30, (10 if len(answer) >= 20 else 4) + (12 if any(marker in answer for marker in reasoning_markers) else 0) + (8 if any(char.isdigit() for char in answer) else 0))
-    clarity = min(20, (10 if len(answer.strip()) >= 12 else 4) + (5 if len(answer) <= 500 else 2) + (5 if any(mark in answer for mark in (".", "다", "요", "?")) else 0))
-    engagement = min(10, (5 if len(answer_tokens) >= 4 else 2) + (5 if any(marker in answer for marker in ("예", "만약", "경우", "질문")) else 0))
-    score = max(0, min(100, concept + reasoning + clarity + engagement))
-    if score >= 80:
-        level = "우수"
-    elif score >= 60:
-        level = "충분함"
-    else:
-        level = "보완 필요"
-    if len(answer) < 12:
-        improvements = "결론만 쓰기보다 그렇게 판단한 근거나 풀이 과정을 한 문장 더 설명해보세요."
-    elif expected_tokens and overlap_ratio < 0.2:
-        improvements = "검색 근거의 핵심 개념과 자신의 결론이 어떻게 연결되는지 다시 확인해보세요."
-    elif reasoning < 20:
-        improvements = "‘왜냐하면’ 또는 구체적인 예를 사용해 판단 근거를 더 분명하게 적어보세요."
-    else:
-        improvements = "같은 원리를 새로운 예시나 다른 표현에 적용해보세요."
-    strengths = "자신의 언어로 답을 구성하고 학습 대화에 참여했습니다."
-    if concept >= 30:
-        strengths = "검색 자료의 핵심 개념을 포함해 자신의 언어로 설명했습니다."
-    return {
-        "score": score,
-        "level": level,
-        "summary": "개념 정확성, 근거·추론, 설명 명료성, 학습 참여도를 기준으로 평가했습니다.",
-        "strengths": strengths,
-        "improvements": improvements,
-        "rubric": {
-            "concept": concept,
-            "reasoning": reasoning,
-            "clarity": clarity,
-            "engagement": engagement,
-        },
-    }
 
 
 def tutor_reply(
