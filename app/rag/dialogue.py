@@ -138,12 +138,13 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
     state.assessment_issue = ""
     state.assessment_message = ""
     state.assessment = turn.assessment if state.last_intent == "answer" else "unassessed"
+    # AI가 말한 출처 ID가 실제 검색 결과에 있는지 확인한다. 내용의 사실성 보장은 아니다.
     supported = bool(turn.source_ids) and set(turn.source_ids).issubset(source_ids)
-    # Normalize whitespace only; never accept a paraphrase or remove negation.
+    # 공백만 정규화한다. 부정어 삭제나 의역으로 존재하지 않는 학생 인용을 인정하지 않는다.
     quote = re.sub(r"\s+", " ", turn.evidence_quote).strip()
     normalized_answer = re.sub(r"\s+", " ", answer).strip()
     quoted = bool(quote) and quote in normalized_answer
-    # Choosing an option can establish recall, but not reasoning or transfer.
+    # 선택지 번호만 맞힌 것을 근거 설명·응용 능력의 증거로 인정하지 않는다.
     choice_only = bool(re.fullmatch(r"\s*(?:[1-9]|[①②③④⑤⑥⑦⑧⑨])\s*(?:번)?[.!]?\s*", answer))
     if choice_only and state.stage != STAGES[0] and turn.assessment == "understood":
         state.assessment = "partial"
@@ -151,6 +152,7 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
     state.transition_reason = "이해 확인이 충분하지 않아 현재 단계를 유지합니다."
     if state.last_intent == "answer" and turn.assessment == "misconception":
         state.misconception = turn.misconception
+    # 실제 답변 + AI 이해 판단 + 학생 인용 + 검색 출처가 모두 있어야 체크·단계 진행을 한다.
     if state.last_intent == "answer" and turn.assessment == "understood" and quoted and supported:
         # Updating a final-stage answer must not evict earlier-stage evidence.
         state.evidence = ([item for item in state.evidence if item.get("stage") != state.stage] + [{

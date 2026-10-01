@@ -43,6 +43,7 @@ def _openai_generate(
                     {"role": "assistant" if sender_type == "ai" else "user", "content": content[:4000]}
                 )
         input_payload = [*prior_messages, {"role": "user", "content": prompt}]
+        # 설명만 받지 않고 이해 판단·학생 인용·출처 등 서버가 검사할 필드도 받는다.
         format_options = {"text": {"format": {
             "type": "json_schema", "name": "tutor_turn", "strict": True,
             "schema": response_schema,
@@ -156,10 +157,12 @@ def tutor_reply(
     grade: str | None = None,
 ) -> tuple[str, dict, list[SearchResult], dict]:
     history = conversation_history or []
+    # 이전 메시지에 저장된 학습 단계를 복원하고, 답변/질문/도움 요청을 구분한다.
     dialogue = prepare_state(history, topic, answer)
     previous_question = dialogue.last_question
     uncertain = dialogue.last_intent == "hint"
     stage = dialogue.stage
+    # 짧은 "몰라"·"응" 때문에 검색 주제가 바뀌지 않도록 이전 질문과 목표를 포함한다.
     retrieval_query = " ".join(
         part
         for part in (
@@ -265,11 +268,13 @@ def tutor_reply(
             break
         try:
             candidate = ProgressiveTutorTurn.model_validate_json(generated)
+            # 재검토는 복사본에서 수행해, 재시도 때문에 학습 단계가 두 번 진행되지 않게 한다.
             trial = baseline.model_copy(deep=True)
             apply_assessment(trial, candidate, answer, {item.source_id for item in contexts})
             repair_issue = trial.assessment_issue if trial.assessment_issue in {"source_validation", "quote_validation"} else ""
         except (ValidationError, ValueError):
             repair_issue = "invalid_response"
+        # 형식·인용·출처 검증 오류만 최대 1회 재요청하며, 남은 시간도 제한한다.
         remaining = min(15.0, 55.0 - (time.monotonic() - generation_started))
         if not repair_issue or attempt == 1 or remaining < 2:
             break

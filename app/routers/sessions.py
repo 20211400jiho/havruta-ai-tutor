@@ -221,6 +221,7 @@ def send_message(
         .all()
     )
     subject = session.room.subject if session.room and session.room.subject else "일반"
+    # 저장된 대화와 선택한 교과 범위를 튜터에 전달한다. 검색·생성·검증은 튜터가 조율한다.
     reply, feedback_data, contexts, response_meta = tutor_reply(
         db,
         session.topic or subject,
@@ -246,6 +247,7 @@ def send_message(
         content=reply,
         response_meta_json=response_meta,
     )
+    # AI 메시지의 response_meta_json에 단계·확인 근거도 저장해 다음 요청에서 복원한다.
     db.add_all([feedback, ai_message])
     db.flush()
     for context in contexts:

@@ -220,6 +220,7 @@ def _chroma_collection():
     if not (chroma_dir / "chroma.sqlite3").is_file():
         raise RuntimeError(f"ChromaDB를 찾을 수 없습니다: {chroma_dir}")
 
+    # 로컬/배포 볼륨의 기존 인덱스를 연다. 회원·대화 기록을 저장하는 MySQL과는 별개다.
     client = chromadb.PersistentClient(path=str(chroma_dir))
     return client.get_collection(name=settings.chroma_collection)
 
@@ -321,6 +322,7 @@ def _query_chroma(
     if standard_code:
         query_options["where_document"] = {"$contains": f"[{standard_code}]"}
     elif unit_code:
+        # 단원은 문서 속 성취기준 코드로 제한하고, 검색 후 메타데이터로도 확인한다.
         query_options["where_document"] = {"$contains": f"[{unit_code}-"}
     return collection.query(**query_options)
 
@@ -341,6 +343,8 @@ def search_chroma(
     if collection_count == 0:
         return []
     with _chroma_lock:
+        # 자료를 색인한 모델과 같은 임베딩 공간에서 질문을 숫자 벡터로 변환한다.
+        # OpenAI 답변 생성이 아니라, 의미가 가까운 자료를 찾기 위한 전처리다.
         query_embedding = model.encode([f"query: {query}"], convert_to_numpy=True)
         query_vector = query_embedding.tolist()
 
@@ -383,6 +387,7 @@ def search_chroma(
                 continue
             content_tokens = tokenize(content or "")
             lexical_coverage = len(query_tokens & content_tokens) / max(1, len(query_tokens))
+            # 1차 순위는 의미 유사도와 단어 겹침을 혼합한다. 정답 확률이 아니다.
             relevance_score = similarity_score * 0.65 + lexical_coverage * 0.35
             result_metadata["retriever"] = "chroma"
             result_metadata["semantic_score"] = round(similarity_score, 4)
@@ -494,6 +499,8 @@ def search(
     normalized_school_level = school_level.strip() if school_level else None
     normalized_grade = grade.strip() if grade else None
     provider = settings.rag_provider.strip().lower()
+    # 최종 3개만 바로 고르지 않고 기본 15개 후보를 확보해 재정렬한다.
+    # Chroma 내부 조회 수는 필터 탈락을 고려해 이보다 클 수 있다.
     candidate_k = top_k if settings.rag_reranker == "off" else max(top_k, settings.rag_rerank_candidates)
     def select(results):
         return rerank(rerank_query or query, results, top_k,
@@ -515,6 +522,7 @@ def search(
                 return select(results)
         except Exception as exc:
             logger.warning("Chroma 검색에 실패해 MySQL 어휘 검색으로 대체합니다: %s", exc)
+    # 검색 실패/빈 결과 시 관계형 DB의 자료로 대체한다. 전체 Chroma 자료와 같지는 않다.
     return select(_lexical_search(
         db,
         query,
