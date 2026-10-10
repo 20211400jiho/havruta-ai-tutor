@@ -97,7 +97,7 @@ function App() {
         {activeMenu === 3 && <NoteView />}
         {activeMenu === 4 && <CalendarView />}
         {activeMenu === 5 && <StudyRoomView user={user} />}
-        {activeMenu === 6 && <MyPageView user={user} />}
+        {activeMenu === 6 && <MyPageView user={user} onNavigate={setActiveMenu} />}
         {activeMenu === 7 && (
           <SettingsView
             user={user}
