@@ -91,7 +91,8 @@ def test_repeated_hint_keeps_original_focus_not_generic_last_question(monkeypatc
     assert FOCUS in captured["query"] and FOCUS in captured["rerank_query"]
     assert "몰라" not in captured["query"]
     assert "누적 힌트 횟수: 2" in captured["prompt"]
-    assert "핵심을 직접 설명" in captured["prompt"]
+    assert "여러 번 요청해도 완성 답안·정답 명칭·빈칸의 정답을 공개하지 마세요" in captured["prompt"]
+    assert "hint_keywords" in captured["prompt"]
     assert meta["dialogue_state"]["hint_count"] == 2
     assert meta["dialogue_state"]["focus_question"] == FOCUS
     assert feedback["followup_question"] == meta["dialogue_state"]["last_question"]

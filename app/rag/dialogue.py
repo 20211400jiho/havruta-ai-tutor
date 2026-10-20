@@ -45,6 +45,17 @@ QUESTION_GOALS = {
 
 class ProgressiveTutorTurn(TutorTurn):
     next_question_goal: Literal["concept", "reason", "counterexample", "application", "summary", "scaffold", "review"]
+    # Defaults keep stored/legacy responses readable; the API schema requires both fields.
+    hint_keywords: list[str] = Field(default_factory=list, max_length=3)
+    hint_text: str = Field(default="", max_length=180)
+
+    @field_validator("hint_keywords")
+    @classmethod
+    def clean_hint_keywords(cls, values: list[str]) -> list[str]:
+        cleaned = list(dict.fromkeys(value.strip() for value in values if value.strip()))
+        if any(len(value) > 24 for value in cleaned):
+            raise ValueError("Hint keywords must be short thinking cues")
+        return cleaned
 
 
 class DialogueState(BaseModel):
@@ -55,6 +66,8 @@ class DialogueState(BaseModel):
     focus_question: str = Field(default="", max_length=1000)
     last_question: str = Field(default="", max_length=1000)
     hint_count: int = Field(default=0, ge=0, le=10000)
+    scaffold_count: int = Field(default=0, ge=0, le=10000)
+    last_hint_keywords: list[str] = Field(default_factory=list, max_length=3)
     last_intent: str = "start"
     assessment: str = "unassessed"
     assessment_issue: str = ""
@@ -128,6 +141,8 @@ def prepare_state(history: list[dict], topic: str, answer: str) -> DialogueState
                                   for item in history if item.get("sender_type") == "ai"][-8:]
     state.stage_turns = min(state.stage_turns + 1, 10000)
     state.question_guard = ""
+    # A previous turn's understanding must not suppress help on the new question.
+    state.assessment = "unassessed"
     state.last_intent = classify_intent(answer)
     if state.last_intent == "hint":
         state.hint_count = min(state.hint_count + 1, 10000)
@@ -149,6 +164,13 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
     if choice_only and state.stage != STAGES[0] and turn.assessment == "understood":
         state.assessment = "partial"
         quoted = False
+    # Copying a displayed clue is not evidence of explaining or applying a concept.
+    compact = lambda text: re.sub(r"[\W_]+", "", text).lower()
+    clues = [compact(text) for text in state.last_hint_keywords if compact(text)]
+    hint_only = bool(clues) and compact(answer) in {*clues, "".join(clues)}
+    if hint_only and state.stage != STAGES[0] and turn.assessment == "understood":
+        state.assessment = "partial"
+        quoted = False
     state.transition_reason = "이해 확인이 충분하지 않아 현재 단계를 유지합니다."
     if state.last_intent == "answer" and turn.assessment == "misconception":
         state.misconception = turn.misconception
@@ -165,6 +187,8 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
         state.stage = STAGES[min(STAGES.index(state.stage) + 1, len(STAGES) - 1)]
         state.focus_question = turn.next_question
         state.hint_count = 0
+        state.scaffold_count = 0
+        state.last_hint_keywords = []
         state.stage_turns = 0
         state.misconception = ""
         state.transition_reason = "학생 인용과 검색 출처가 있는 AI 이해 판단에 따라 한 단계 진행합니다."
@@ -173,7 +197,11 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
         state.assessment = "unassessed"
     if state.last_intent != "answer":
         state.assessment_issue = "not_answer"
-        state.assessment_message = "지금은 질문이나 도움 요청에 답하는 중이에요. 이해한 내용을 설명하면 확인할게요."
+        state.assessment_message = (
+            "괜찮아요. 힌트에서 떠오르는 생각 하나부터 이야기해보세요."
+            if state.last_intent == "hint" else
+            "지금은 질문이나 도움 요청에 답하는 중이에요. 이해한 내용을 설명하면 확인할게요."
+        )
     elif state.assessment == "partial":
         state.assessment_issue = "needs_explanation"
         state.assessment_message = "설명을 조금 더 확인해야 해요. " + turn.reasoning

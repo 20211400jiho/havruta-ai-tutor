@@ -196,6 +196,7 @@ export default function StudyView({ user }) {
             <div className="message-content-wrap">
               <span className="message-author">{message.sender_type === "ai" ? "하브루타 · AI" : "나의 생각"}</span>
               <div className="bubble"><span>{typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다."}</span></div>
+              {message.sender_type === "ai" && <HintPanel hint={messageMeta[message.id]?.hint} />}
               {message.sender_type === "ai" && messageMeta[message.id] && <EvidencePanel meta={messageMeta[message.id]} />}
             </div>
           </div>
@@ -208,6 +209,18 @@ export default function StudyView({ user }) {
       <form className="chat-input-bar" onSubmit={send}><textarea rows={2} aria-label="내 생각과 풀이 과정" value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 그 이유를 적어보세요." /><button className="send-btn" disabled={loading || !input.trim()}>보내기</button></form>
     </div>
   );
+}
+
+function HintPanel({ hint }) {
+  if (!hint || !Array.isArray(hint.keywords) || !hint.keywords.length) return null;
+  const keywords = hint.keywords.filter((word) => typeof word === "string" && word.trim()).slice(0, 3);
+  if (!keywords.length) return null;
+  return <aside className="tutor-hint" aria-label="생각을 돕는 힌트">
+    <span className="tutor-hint-label">{hint.trigger === "stalled" ? "잠깐, 생각의 단서" : "생각을 돕는 힌트"} · {Math.min(3, Math.max(1, Number(hint.level) || 1))}단계</span>
+    <ul className="tutor-hint-keywords">{keywords.map((word) => <li key={word}>{word}</li>)}</ul>
+    {typeof hint.text === "string" && hint.text && <p>{hint.text}</p>}
+    <small>단어만 따라 쓰기보다, 떠오르는 생각과 이유를 말해보세요.</small>
+  </aside>;
 }
 
 function EvidencePanel({ meta }) {
