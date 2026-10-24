@@ -129,14 +129,14 @@
   justify-content: flex-end;
 }
 .study-chat-container .message-row.ai .bubble {
-  background: #EDF3FF;
-  color: #243653;
+  background: #EDF3FF !important;
+  color: #243653 !important;
   border: 1px solid #DBE6FF;
   border-radius: 6px 18px 18px 18px;
 }
 .study-chat-container .message-row.user .bubble {
-  background: #315CE8;
-  color: #FFFFFF;
+  background: #315CE8 !important;
+  color: #FFFFFF !important;
   border: 1px solid transparent;
   border-radius: 18px 18px 6px 18px;
 }
