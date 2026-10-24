@@ -121,3 +121,39 @@
     color: white;
     font-size: 20px;
 }
+/* HARU Chat UI */
+.study-chat-container .message-row.ai {
+  justify-content: flex-start;
+}
+.study-chat-container .message-row.user {
+  justify-content: flex-end;
+}
+.study-chat-container .message-row.ai .bubble {
+  background: #EDF3FF;
+  color: #243653;
+  border: 1px solid #DBE6FF;
+  border-radius: 6px 18px 18px 18px;
+}
+.study-chat-container .message-row.user .bubble {
+  background: #315CE8;
+  color: #FFFFFF;
+  border: 1px solid transparent;
+  border-radius: 18px 18px 6px 18px;
+}
+.study-chat-container .message-row.user .message-content-wrap {
+  align-items: flex-end;
+}
+.study-chat-container .bubble {
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:root[data-theme="dark"] .study-chat-container .message-row.ai .bubble {
+  background: #263A59;
+  color: #F1F5F9;
+  border-color: #3B5275;
+}
+:root[data-theme="dark"] .study-chat-container .message-row.user .bubble {
+  background: #315CE8;
+  color: #FFFFFF;
+}
