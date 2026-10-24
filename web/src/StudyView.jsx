@@ -5,6 +5,8 @@ import LearningReport from "./LearningReport";
 import { ACTIVE_SESSION_KEY, getClientValue, removeClientValue, setClientValue } from "./clientStorage";
 import "./StudyView.css";
 
+const AI_TUTOR_NAME = "하루";
+
 const SUBJECTS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
 
 export default function StudyView({ user }) {
@@ -194,7 +196,9 @@ export default function StudyView({ user }) {
         {messages.map((message, index) => (
           <div key={`${message.sender_type}-${message.id ?? index}`} className={`message-row ${message.sender_type}`}>
             <div className="message-content-wrap">
-              <span className="message-author">{message.sender_type === "ai" ? "하브루타 · AI" : "나의 생각"}</span>
+              <span className="message-author">
+{message.sender_type === "ai" ? AI_TUTOR_NAME : "나"}
+</span>
               <div className="bubble"><span>{typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다."}</span></div>
               {message.sender_type === "ai" && <HintPanel hint={messageMeta[message.id]?.hint} />}
               {message.sender_type === "ai" && messageMeta[message.id] && <EvidencePanel meta={messageMeta[message.id]} />}
