@@ -197,7 +197,9 @@ export default function StudyView({ user }) {
           <div key={`${message.sender_type}-${message.id ?? index}`} className={`message-row ${message.sender_type}`}>
             <div className="message-content-wrap">
               <span className="message-author">
-{message.sender_type === "ai" ? AI_TUTOR_NAME : "나"}
+
+{message.sender_type === "ai" ? `${AI_TUTOR_NAME} 🦉` : "나 🙋"}
+
 </span>
               <div className="bubble"><span>{typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다."}</span></div>
               {message.sender_type === "ai" && <HintPanel hint={messageMeta[message.id]?.hint} />}
