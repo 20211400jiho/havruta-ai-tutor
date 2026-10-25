@@ -28,7 +28,7 @@ export default function InterruptedSessions({ sessions, suggestedId, loading, on
       {session.last_question && <p className="resume-question"><span>이어서 생각할 질문</span>{session.last_question}</p>}
       <details className="resume-history" onToggle={(event) => { if (event.currentTarget.open) preview(session.id); }}><summary>지난 대화 보기</summary>
         {errors[session.id] ? <p role="alert">{errors[session.id]} <button type="button" onClick={() => preview(session.id)}>다시 불러오기</button></p>
-          : previews[session.id] ? <ol>{previews[session.id].messages.map((message) => <li key={message.id}><strong>{message.sender_type === "user" ? "나의 생각" : "하브루타 · AI"}</strong><p>{message.content}</p></li>)}</ol>
+          : previews[session.id] ? <ol>{previews[session.id].messages.map((message) => <li key={message.id}><strong>{message.sender_type === "user" ? "나 🙋" : "하루 🦉"}</strong><p>{message.content}</p></li>)}</ol>
           : <p role="status">저장된 대화를 불러오고 있어요.</p>}
       </details>
       <div className="resume-actions"><button type="button" disabled={loading || session.can_resume === false} onClick={() => onResume(session)}>이어서 학습</button><button type="button" className="resume-restart" disabled={loading || session.can_restart === false} onClick={() => onRestart(session)}>처음부터 다시</button></div>
