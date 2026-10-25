@@ -47,6 +47,38 @@
 .resume-sessions { display: grid; gap: 8px; padding: 14px; border: 1px solid #dbe6f6; border-radius: 12px; background: #f8fbff; }
 .resume-sessions > button { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 11px 13px; color: #31549d; background: white; border: 1px solid #dbe6f6; text-align: left; }
 .resume-sessions small { color: #64748b; font-weight: 500; }
+.resume-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.resume-heading h3 { margin: 0; font-size: 17px; }
+.resume-heading > span, .resume-intro, .resume-date { font-size: 12px; color: var(--text-muted); }
+.resume-intro { margin: 2px 0 12px; line-height: 1.7; }
+.resume-session { min-width: 0; margin: 4px 0; padding: 18px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface-bg); }
+.resume-session-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font-size: 12px; color: var(--text-muted); }
+.resume-session h4 { margin: 10px 0 6px; font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.resume-date { margin: 6px 0 14px; }
+.resume-progress { display: grid; gap: 6px; }
+.app-container .resume-progress label { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-muted); font-weight: 400; }
+.resume-progress progress { width: 100%; height: 5px; accent-color: #5473ad; }
+.resume-progress > span { font-size: 12px; color: var(--text-muted); }
+.resume-question { display: grid; gap: 6px; margin: 16px 0; padding-left: 12px; border-left: 2px solid var(--border-color); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.resume-question > span { font-size: 11px; color: var(--text-muted); }
+.resume-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.app-container .resume-actions button { padding: 10px 14px; border-radius: 5px; border: 1px solid #315bb5; background: #315bb5; color: white; font-size: 13px; }
+.app-container .resume-actions .resume-restart { border-color: var(--border-color); background: var(--surface-bg); color: var(--text-primary); }
+.resume-history { margin-top: 12px; font-size: 12px; }
+.resume-history summary { cursor: pointer; color: var(--notebook-accent, #315bb5); }
+.resume-history ol { max-height: 320px; overflow-y: auto; list-style: none; padding: 12px; background: var(--surface-muted); border-radius: 5px; }
+.resume-history li { padding: 8px 0; border-bottom: 1px solid var(--border-color); }
+.resume-history li:last-child { border-bottom: 0; }
+.resume-history p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.resume-notice { line-height: 1.7; margin-top: 8px; font-size: 11px; }
+.study-saved-notice { padding: 12px; background: var(--surface-muted); border-radius: 5px; font-size: 13px; line-height: 1.7; }
+.study-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 600px) {
+  .study-chat-header { flex-wrap: wrap; }
+  .study-header-actions { width: 100%; }
+  .study-header-actions button { flex: 1; }
+  .resume-session { padding: 14px; }
+}
 
 .chat-messages {
     flex: 1;

@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from app.database.connection import get_db
 from app.dependencies import get_current_user
@@ -84,6 +84,9 @@ def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
         "state": session.state,
         "started_at": session.started_at,
         "ended_at": session.ended_at,
+        "subject": session.room.subject if session.room else None,
+        "can_resume": session.state != "finished" and bool(session.room and session.room.status == "active"),
+        "can_restart": bool(session.room and session.room.status == "active"),
     }
     if include_messages:
         result["messages"] = [
@@ -91,7 +94,45 @@ def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
             for message in sorted(session.messages, key=lambda item: (item.created_at, item.id))
         ]
         result["learning_report"] = learning_report(result["messages"], session.topic or "학습")
+        latest_ai = next((item for item in reversed(result["messages"]) if item["sender_type"] == "ai"), None)
+        result.update(progress_fields(
+            result["learning_report"], latest_ai,
+            sum(item["sender_type"] == "user" for item in result["messages"]),
+            max((item["created_at"] for item in result["messages"]), default=session.started_at),
+        ))
     return result
+
+
+def progress_fields(report: dict, latest_ai: dict | None, answer_count: int, last_activity_at) -> dict:
+    latest_ai = latest_ai or {}
+    meta = latest_ai.get("response_meta") or {}
+    saved = meta.get("dialogue_state") if isinstance(meta, dict) else None
+    last_question = saved.get("last_question") if isinstance(saved, dict) else None
+    return {
+        "stage": report["stage"], "checked_count": report["checked_count"],
+        "total_count": report["total_count"], "answer_count": answer_count,
+        "last_activity_at": last_activity_at,
+        "last_question": last_question or extract_question(latest_ai.get("content") or ""),
+    }
+
+
+def session_response(session: ChatSession) -> dict:
+    serialized = session_dict(session, include_messages=True)
+    latest_meta = next((item["response_meta"] for item in reversed(serialized["messages"])
+                        if item["sender_type"] == "ai" and isinstance(item.get("response_meta"), dict)), {})
+    return {"session": serialized, "response_meta": {
+        **latest_meta, "stage": conversation_stage(serialized["messages"]),
+        "curriculum_year": settings.rag_curriculum_year,
+    }}
+
+
+def owned_session(db: Session, session_id: int, user_id: int) -> ChatSession:
+    session = db.get(ChatSession, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="학습 세션을 찾을 수 없습니다.")
+    if session.user_id != user_id:
+        raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
+    return session
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -163,13 +204,33 @@ def create_session(
 
 @router.get("")
 def list_sessions(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    # One aggregate and one latest-AI join, rather than loading every transcript
+    # just to show a progress card. All joins remain scoped to the current user.
+    activity = (db.query(
+        Message.session_id.label("session_id"),
+        func.max(case((Message.sender_type == "ai", Message.id), else_=None)).label("latest_ai_id"),
+        func.sum(case((Message.sender_type == "user", 1), else_=0)).label("answer_count"),
+        func.max(Message.created_at).label("last_activity_at"),
+    ).join(ChatSession, ChatSession.id == Message.session_id)
+      .filter(ChatSession.user_id == user.id).group_by(Message.session_id).subquery())
+    latest_ai = aliased(Message)
     sessions = (
-        db.query(ChatSession)
+        db.query(ChatSession, activity.c.answer_count, activity.c.last_activity_at, latest_ai)
+        .options(joinedload(ChatSession.room))
+        .outerjoin(activity, ChatSession.id == activity.c.session_id)
+        .outerjoin(latest_ai, latest_ai.id == activity.c.latest_ai_id)
         .filter(ChatSession.user_id == user.id)
-        .order_by(ChatSession.started_at.desc())
+        .order_by(func.coalesce(activity.c.last_activity_at, ChatSession.started_at).desc(), ChatSession.id.desc())
         .all()
     )
-    return {"count": len(sessions), "sessions": [session_dict(item) for item in sessions]}
+    summaries = []
+    for session, answer_count, last_activity_at, message in sessions:
+        latest = message_dict(message) if message else None
+        report = learning_report([latest] if latest else [], session.topic or "학습")
+        summaries.append({**session_dict(session), **progress_fields(
+            report, latest, answer_count or 0, last_activity_at or session.started_at,
+        )})
+    return {"count": len(summaries), "sessions": summaries}
 
 
 @router.get("/{session_id}")
@@ -178,22 +239,45 @@ def get_session(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    session = db.get(ChatSession, session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="학습 세션을 찾을 수 없습니다.")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
-    serialized = session_dict(session, include_messages=True)
-    latest_meta = next((item["response_meta"] for item in reversed(serialized["messages"])
-                        if item["sender_type"] == "ai" and isinstance(item.get("response_meta"), dict)), {})
-    return {
-        "session": serialized,
-        "response_meta": {
-            **latest_meta,
-            "stage": conversation_stage(serialized["messages"]),
-            "curriculum_year": settings.rag_curriculum_year,
-        },
-    }
+    return session_response(owned_session(db, session_id, user.id))
+
+
+@router.post("/{session_id}/pause")
+def pause_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    session = owned_session(db, session_id, user.id)
+    if session.state == "finished":
+        raise HTTPException(status_code=409, detail="이미 마친 학습입니다. 처음부터 다시 학습할 수 있습니다.")
+    # Pausing does not finish learning or create a completed record/note.
+    session.state = "paused"
+    db.commit()
+    return {"message": "대화와 진행 상태를 저장했습니다. 나중에 이어서 학습할 수 있어요.", **session_response(session)}
+
+
+@router.post("/{session_id}/resume")
+def resume_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    session = owned_session(db, session_id, user.id)
+    if session.state == "finished":
+        raise HTTPException(status_code=409, detail="이미 마친 학습입니다. 처음부터 다시 학습해주세요.")
+    room = ensure_room_access(db, session.room_id, user.id)
+    if room.status != "active":
+        raise HTTPException(status_code=409, detail="삭제된 학습방의 기록은 볼 수 있지만 이어서 진행할 수 없습니다.")
+    session.state = "questioning"
+    db.commit()
+    return session_response(session)
+
+
+@router.post("/{session_id}/restart", status_code=status.HTTP_201_CREATED)
+def restart_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    previous = owned_session(db, session_id, user.id)
+    # Reuse scope validation and initial-question generation. Keep the original
+    # transcript, evidence and completed record; only the new session starts at 0/5.
+    if previous.state != "finished":
+        previous.state = "paused"
+    result = create_session(SessionCreateRequest(
+        room_id=previous.room_id, topic=previous.topic or "학습",
+        unit_code=previous.unit_code, school_level=previous.school_level, grade=previous.grade,
+    ), user, db)
+    return {**result, "restarted_from_session_id": previous.id}
 
 
 @router.post("/{session_id}/messages")

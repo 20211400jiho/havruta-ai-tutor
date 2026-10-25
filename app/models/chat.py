@@ -13,6 +13,7 @@ class ChatState(str, Enum):
     QUESTIONING = "questioning"
     ANSWERED = "answered"
     FEEDBACK = "feedback"
+    PAUSED = "paused"
     FINISHED = "finished"
 
 

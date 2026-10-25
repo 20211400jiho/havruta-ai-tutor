@@ -145,6 +145,30 @@ def _distractors_for(correct: str, question: str, candidates: list[dict]) -> lis
     return distractors[:3]
 
 
+def _option_explanation(option: str, correct: str, question: str, candidates: list[dict]) -> str:
+    """Explain an option using its construction/source, not invented subject facts."""
+    if option == correct:
+        return "이 문항의 교과 자료가 제시하는 핵심 내용과 일치합니다. 아래 정답 해설을 확인해보세요."
+    source = next((item for item in candidates if item["answer"] == option
+                   and _normalized_text(item["question"]) != _normalized_text(question)), None)
+    if source:
+        return (
+            f"고른 보기는 ‘{source['question']}’에 대한 설명으로 구성된 선택지입니다. "
+            f"지금은 ‘{question}’을 묻고 있으므로, 그 질문의 답인 ‘{correct}’와 구분해야 합니다."
+        )
+    # Only call a difference a reversed condition when that is how it was made.
+    if option in _misconception_variants(correct):
+        return (
+            f"고른 보기는 정답의 조건이나 관계를 바꾼 선택지입니다. "
+            f"‘{option}’와 자료의 설명 ‘{correct}’에서 달라진 표현을 비교해보세요."
+        )
+    return (
+        f"이 문항에서 확인하는 내용은 ‘{question}’입니다. "
+        f"고른 보기 ‘{option}’ 대신, 자료가 제시하는 ‘{correct}’가 답입니다. "
+        "아래 해설과 두 보기의 차이를 비교해보세요."
+    )
+
+
 def generate_quiz(
     db: Session,
     user_id: int,
@@ -197,6 +221,9 @@ def generate_quiz(
                 "options": options,
                 "correct_index": options.index(correct),
                 "explanation": context.metadata.get("description") or correct,
+                "option_explanations": [
+                    _option_explanation(option, correct, question, candidate_rows) for option in options
+                ],
             }
         )
     if not question_rows:

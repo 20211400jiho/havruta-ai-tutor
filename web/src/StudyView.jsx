@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import CurriculumSelector from "./CurriculumSelector";
 import LearningReport from "./LearningReport";
+import InterruptedSessions from "./InterruptedSessions";
 import { ACTIVE_SESSION_KEY, getClientValue, removeClientValue, setClientValue } from "./clientStorage";
 import "./StudyView.css";
 
@@ -13,6 +14,10 @@ export default function StudyView({ user }) {
   const [sessionId, setSessionId] = useState(null);
   const [activeSession, setActiveSession] = useState(null);
   const [openSessions, setOpenSessions] = useState([]);
+  const [suggestedId, setSuggestedId] = useState(() => Number(getClientValue(ACTIVE_SESSION_KEY)) || null);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState("");
+  const [notice, setNotice] = useState("");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [feedback, setFeedback] = useState(null);
@@ -29,25 +34,31 @@ export default function StudyView({ user }) {
   const currentRagStatus = ragStatus?.subject === selectedSubject ? ragStatus : null;
 
   useEffect(() => {
-    api("/sessions").then(async (sessionResult) => {
+    let active = true;
+    api("/sessions").then((sessionResult) => {
+      if (!active) return;
       const resumable = (Array.isArray(sessionResult.sessions) ? sessionResult.sessions : [])
         .filter((session) => session.state !== "finished");
       setOpenSessions(resumable);
       const storedId = Number(getClientValue(ACTIVE_SESSION_KEY));
       const storedSession = resumable.find((session) => session.id === storedId);
-      if (storedSession) {
-        const restored = await api(`/sessions/${storedSession.id}`);
-        setSessionId(restored.session.id);
-        setActiveSession(restored.session);
-        setMessages(restored.session.messages || []);
-        setMessageMeta(metadataByMessage(restored.session.messages || []));
-        setResponseMeta(restored.response_meta || null);
-        setLearningReport(restored.session.learning_report || null);
-      } else {
+      // Show saved progress first, so returning students can deliberately choose
+      // resume or restart instead of being silently dropped into an old chat.
+      if (!storedSession) {
         removeClientValue(ACTIVE_SESSION_KEY);
+        setSuggestedId(null);
       }
-    }).catch((requestError) => setError(requestError.message));
+    }).catch((requestError) => { if (active) setSessionsError(requestError.message); })
+      .finally(() => { if (active) setSessionsLoading(false); });
+    return () => { active = false; };
   }, []);
+
+  const reloadSessions = async () => {
+    setSessionsLoading(true); setSessionsError("");
+    try { const result = await api("/sessions"); setOpenSessions((result.sessions || []).filter((session) => session.state !== "finished")); }
+    catch (requestError) { setSessionsError(requestError.message); }
+    finally { setSessionsLoading(false); }
+  };
   useEffect(() => {
     const target = bottomRef.current;
     if (typeof target?.scrollIntoView !== "function") return;
@@ -65,6 +76,23 @@ export default function StudyView({ user }) {
       .catch(() => { if (!cancelled) setRagStatus(null); });
     return () => { cancelled = true; };
   }, [selectedSubject]);
+
+  const adoptSession = (result) => {
+    if (!result?.session?.id || !Array.isArray(result.session.messages)) {
+      throw new Error("학습 대화 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
+    }
+    setSessionId(result.session.id);
+    setActiveSession(result.session);
+    setLearningReport(result.session.learning_report || null);
+    setCompletedReport(null);
+    setMessages(result.session.messages);
+    setMessageMeta(metadataByMessage(result.session.messages));
+    setResponseMeta(result.response_meta || null);
+    setInput(""); setFeedback(null); setNotice("");
+    setClientValue(ACTIVE_SESSION_KEY, String(result.session.id));
+    setSuggestedId(result.session.id);
+    setOpenSessions((current) => [result.session, ...current.filter((item) => item.id !== result.session.id)]);
+  };
 
   const startSession = async () => {
     if (!topic) return setError("학습할 단원을 선택해주세요.");
@@ -85,38 +113,39 @@ export default function StudyView({ user }) {
           grade: curriculumSelection.grade,
         }),
       });
-      if (!result?.session?.id || !Array.isArray(result.session.messages)) {
-        throw new Error("학습 세션 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
-      }
-      setSessionId(result.session.id);
-      setActiveSession(result.session);
-      setClientValue(ACTIVE_SESSION_KEY, String(result.session.id));
-      setLearningReport(result.session.learning_report || null);
-      setCompletedReport(null);
-      setOpenSessions((current) => [result.session, ...current.filter((item) => item.id !== result.session.id)]);
-      setMessages(result.session.messages);
-      const firstMessage = result.session.messages[0];
-      if (firstMessage?.id && result.response_meta) setMessageMeta({ [firstMessage.id]: result.response_meta });
-      setResponseMeta(result.response_meta || null);
+      adoptSession(result);
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
   };
 
   const resumeSession = async (targetSession) => {
-    setLoading(true); setError(""); setFeedback(null); setMessageMeta({});
+    setLoading(true); setError("");
     try {
-      const result = await api(`/sessions/${targetSession.id}`);
-      if (!result?.session?.id || !Array.isArray(result.session.messages)) {
-        throw new Error("저장된 학습 대화를 불러오지 못했습니다.");
-      }
-      setSessionId(result.session.id);
-      setActiveSession(result.session);
-      setLearningReport(result.session.learning_report || null);
-      setCompletedReport(null);
-      setMessages(result.session.messages);
-      setMessageMeta(metadataByMessage(result.session.messages));
-      setResponseMeta(result.response_meta || null);
-      setClientValue(ACTIVE_SESSION_KEY, String(result.session.id));
+      adoptSession(await api(`/sessions/${targetSession.id}/resume`, { method: "POST" }));
+    } catch (requestError) { setError(requestError.message); }
+    finally { setLoading(false); }
+  };
+
+  const restartSession = async (targetSession) => {
+    if (loading || !window.confirm(`‘${targetSession.topic || "학습"}’을 처음부터 다시 시작할까요?\n이전 대화와 진행 기록은 그대로 보존하고, 같은 범위의 새 학습을 시작합니다.`)) return;
+    setLoading(true); setError("");
+    try {
+      adoptSession(await api(`/sessions/${targetSession.id}/restart`, { method: "POST" }));
+      setOpenSessions((current) => current.map((item) => item.id === targetSession.id ? { ...item, state: "paused" } : item));
+    } catch (requestError) { setError(requestError.message); }
+    finally { setLoading(false); }
+  };
+
+  const pauseSession = async () => {
+    if (loading || (input.trim() && !window.confirm("아직 보내지 않은 입력은 저장되지 않아요. 대화 기록과 진행 상태를 저장하고 나갈까요?"))) return;
+    setLoading(true); setError("");
+    try {
+      const result = await api(`/sessions/${sessionId}/pause`, { method: "POST" });
+      setOpenSessions((current) => [result.session, ...current.filter((item) => item.id !== sessionId)]);
+      setSessionId(null); setActiveSession(null); setMessages([]); setInput(""); setFeedback(null);
+      setMessageMeta({}); setResponseMeta(null); setLearningReport(null); setCompletedReport(null);
+      setNotice(result.message);
+      // Keep the id only as a suggestion, not an instruction to auto-resume.
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
   };
@@ -159,6 +188,7 @@ export default function StudyView({ user }) {
       setCompletedReport(result.learning_report || learningReport);
       setOpenSessions((current) => current.filter((item) => item.id !== sessionId));
       removeClientValue(ACTIVE_SESSION_KEY);
+      setSuggestedId(null);
       setSessionId(null); setActiveSession(null); setMessages([]); setFeedback(null); setMessageMeta({}); setResponseMeta(null);
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
@@ -170,6 +200,10 @@ export default function StudyView({ user }) {
       <span className="study-kicker">혼자 학습하기 · 중·고등학생</span>
       <h2>{completedReport ? "다음으로 탐구할 단원은?" : "오늘은 무엇을 알아볼까요?"}</h2>
       <p className="study-intro">단원을 고르고 내 생각을 설명해보세요. AI가 질문을 이어갑니다.</p>
+      {notice && <p className="study-saved-notice" role="status">{notice}</p>}
+      {sessionsLoading && <p role="status">저장된 학습을 확인하고 있어요.</p>}
+      {sessionsError && <p className="study-error" role="alert">학습 기록을 불러오지 못했어요. <button type="button" onClick={reloadSessions}>다시 불러오기</button></p>}
+      <InterruptedSessions sessions={openSessions} suggestedId={suggestedId} loading={loading || sessionsLoading} onResume={resumeSession} onRestart={restartSession} />
       <label>과목<select value={selectedSubject} disabled={loading} onChange={(e) => { setSelectedSubject(e.target.value); setCurriculumSelection(null); }}><option value="">과목 선택</option>{SUBJECTS.map((subject) => <option key={subject}>{subject}</option>)}</select></label>
       <CurriculumSelector
         subject={selectedSubject}
@@ -177,7 +211,6 @@ export default function StudyView({ user }) {
         onSelectionChange={setCurriculumSelection}
         disabled={loading}
       />
-      {openSessions.length > 0 && <section className="resume-sessions"><strong>이어할 학습</strong>{openSessions.slice(0, 3).map((session) => <button type="button" key={session.id} onClick={() => resumeSession(session)} disabled={loading}><span>{session.topic || "하브루타 학습"}</span><small>{session.school_level || ""} {session.grade || ""} · 대화 이어가기</small></button>)}</section>}
       {currentRagStatus && !currentRagStatus.available && (
         <p className="rag-notice">{currentRagStatus.subject} 학습 자료를 준비 중입니다. 다른 과목을 선택해주세요.</p>
       )}
@@ -188,7 +221,7 @@ export default function StudyView({ user }) {
 
   return (
     <div className="study-chat-container">
-      <header className="study-chat-header"><div><span className="study-kicker">나의 학습 노트</span><strong>{displayedTopic}</strong><small>{responseMeta?.stage || "개념 설명"} · AI와 생각 나누기</small></div><button onClick={finish} disabled={loading}>마치고 돌아보기</button></header>
+      <header className="study-chat-header"><div><span className="study-kicker">나의 학습 노트</span><strong>{displayedTopic}</strong><small>{responseMeta?.stage || "개념 설명"} · AI와 생각 나누기</small></div><div className="study-header-actions"><button type="button" onClick={pauseSession} disabled={loading}>저장하고 나가기</button><button type="button" onClick={finish} disabled={loading}>마치고 돌아보기</button></div></header>
       <LearningReport report={learningReport} />
       <div className="chat-messages">
         {messages.map((message, index) => (

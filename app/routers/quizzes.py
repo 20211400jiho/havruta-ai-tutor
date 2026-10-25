@@ -8,6 +8,7 @@ from app.models.user import User
 from app.schemas.study_content import QuizGenerateRequest, QuizSubmitRequest
 from app.services.content_service import QuizSourceNotFoundError, generate_quiz
 from app.rag.curriculum import is_valid_curriculum_selection
+from app.services.quiz_review import attempt_review
 
 
 router = APIRouter(prefix="/quizzes", tags=["복습 퀴즈"])
@@ -21,6 +22,7 @@ def quiz_summary(quiz: Quiz) -> dict:
         "subject": quiz.subject,
         "total_questions": len(quiz.questions),
         "best_score": best_score,
+        "attempt_count": len(quiz.attempts),
         "created_at": quiz.created_at,
     }
 
@@ -87,6 +89,8 @@ def submit_quiz(
         raise HTTPException(status_code=404, detail="퀴즈를 찾을 수 없습니다.")
     if len(payload.answers) != len(quiz.questions):
         raise HTTPException(status_code=422, detail="모든 문제의 답을 제출해주세요.")
+    if any(answer >= len(question.options) for answer, question in zip(payload.answers, quiz.questions)):
+        raise HTTPException(status_code=422, detail="선택지 범위 안의 답을 제출해주세요.")
     correct_count = sum(answer == question.correct_index for answer, question in zip(payload.answers, quiz.questions))
     score = round(correct_count / len(quiz.questions) * 100) if quiz.questions else 0
     attempt = QuizAttempt(
@@ -98,19 +102,23 @@ def submit_quiz(
     )
     db.add(attempt)
     db.commit()
-    return {
-        "score": score,
-        "correct_count": correct_count,
-        "total_questions": len(quiz.questions),
-        "results": [
-            {
-                "correct_index": question.correct_index,
-                "explanation": question.explanation,
-                "is_correct": payload.answers[index] == question.correct_index,
-            }
-            for index, question in enumerate(quiz.questions)
-        ],
-    }
+    db.refresh(attempt)
+    return attempt_review(quiz, attempt)
+
+
+@router.get("/{quiz_id}/review")
+def get_quiz_review(quiz_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    quiz = db.get(Quiz, quiz_id)
+    if quiz is None or quiz.user_id != user.id:
+        raise HTTPException(status_code=404, detail="퀴즈를 찾을 수 없습니다.")
+    attempt = (db.query(QuizAttempt).filter_by(quiz_id=quiz.id, user_id=user.id)
+               .order_by(QuizAttempt.submitted_at.desc(), QuizAttempt.id.desc()).first())
+    if attempt is None:
+        raise HTTPException(status_code=404, detail="아직 제출한 답안이 없습니다. 먼저 퀴즈를 풀어주세요.")
+    try:
+        return attempt_review(quiz, attempt)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.delete("/{quiz_id}")

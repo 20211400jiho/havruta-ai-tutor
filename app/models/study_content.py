@@ -31,7 +31,7 @@ class Quiz(Base):
     subject: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
-    questions = relationship("QuizQuestion", back_populates="quiz", cascade="all, delete-orphan")
+    questions = relationship("QuizQuestion", back_populates="quiz", cascade="all, delete-orphan", order_by="QuizQuestion.id")
     attempts = relationship("QuizAttempt", back_populates="quiz", cascade="all, delete-orphan")
 
 
@@ -44,6 +44,8 @@ class QuizQuestion(Base):
     options: Mapped[list] = mapped_column(JSON, nullable=False)
     correct_index: Mapped[int] = mapped_column(nullable=False)
     explanation: Mapped[str | None] = mapped_column(Text)
+    # Aligned with the shuffled options. Old quizzes may not have this metadata.
+    option_explanations: Mapped[list | None] = mapped_column(JSON)
 
     quiz = relationship("Quiz", back_populates="questions")
 

@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from pydantic import BaseModel, Field
 
 
@@ -11,4 +13,4 @@ class QuizGenerateRequest(BaseModel):
 
 
 class QuizSubmitRequest(BaseModel):
-    answers: list[int]
+    answers: list[Annotated[int, Field(strict=True, ge=0)]] = Field(min_length=1, max_length=10)

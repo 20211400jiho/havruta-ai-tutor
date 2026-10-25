@@ -20,11 +20,17 @@ def unique_names(table: str) -> set[str]:
     }
 
 
+def migrate_quiz_explanations(connection) -> None:
+    if "option_explanations" not in {column["name"] for column in inspect(connection).get_columns("quiz_questions")}:
+        connection.execute(text("ALTER TABLE quiz_questions ADD COLUMN option_explanations JSON NULL"))
+
+
 def migrate() -> None:
     # Fresh Railway databases need all current tables; create_all is idempotent.
     # Existing databases then receive the legacy column/constraint upgrades below.
     create_tables()
     with engine.begin() as connection:
+        migrate_quiz_explanations(connection)
         if "grade" not in column_names("users"):
             connection.execute(text("ALTER TABLE users ADD COLUMN grade VARCHAR(50) NULL AFTER name"))
 
