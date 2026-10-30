@@ -9,11 +9,7 @@ import "./StudyView.css";
 const AI_TUTOR_NAME = "하루";
 
 const SUBJECTS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
-const HELP_OPTIONS = [
-  { action: "hint", label: "힌트 받기", pending: "힌트 요청 중…", message: "지금 질문에 대한 힌트를 주세요." },
-  { action: "example", label: "예시로 설명", pending: "예시 요청 중…", message: "지금 질문을 쉬운 예시로 설명해 주세요." },
-  { action: "simplify", label: "쉽게 설명", pending: "설명 요청 중…", message: "지금 내용을 쉬운 말로 다시 설명해 주세요." },
-];
+const HINT_REQUEST = "지금 질문에 대한 힌트를 주세요.";
 
 export default function StudyView({ user }) {
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -199,7 +195,7 @@ export default function StudyView({ user }) {
     finally { messagePending.current = false; setLoading(false); setPendingHelp(null); }
   };
 
-  const requestHelp = (option) => sendMessage(option.message, option.action);
+  const requestHint = () => sendMessage(HINT_REQUEST, "hint");
 
   const finish = async () => {
     setLoading(true);
@@ -266,16 +262,16 @@ export default function StudyView({ user }) {
       {error && <p className="study-error">{error}</p>}
       <div className="study-help-actions" role="group" aria-label="하루에게 학습 도움 요청">
         <span id="study-help-description">막혔다면 하루에게 도움을 요청해보세요.</span>
-        <div>{HELP_OPTIONS.map((option) => <button key={option.action} type="button" disabled={loading} onClick={() => requestHelp(option)}><HelpIcon kind={option.action} />{pendingHelp === option.action ? option.pending : option.label}</button>)}</div>
+        <div><button type="button" disabled={loading} onClick={requestHint}><HelpIcon />{pendingHelp === "hint" ? "힌트 요청 중…" : "힌트"}</button></div>
       </div>
       <form className="chat-input-bar" onSubmit={send}><textarea rows={2} aria-label="내 생각과 풀이 과정" aria-describedby="study-help-description" value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 그 이유를 적어보세요." /><button className="send-btn" disabled={loading || !input.trim()}>보내기</button></form>
     </div>
   );
 }
 
-function HelpIcon({ kind }) {
+function HelpIcon() {
   return <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {kind === "hint" ? <path d="M9 18h6M10 21h4M8 14a6 6 0 1 1 8 0c-1 .8-1 1.4-1 2H9c0-.6 0-1.2-1-2Z" /> : kind === "example" ? <><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v14h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z" /><path d="M6 8h3m6 0h3M6 12h3m6 0h3" /></> : <path d="M4 6h16M4 12h11M4 18h7" />}
+    <path d="M9 18h6M10 21h4M8 14a6 6 0 1 1 8 0c-1 .8-1 1.4-1 2H9c0-.6 0-1.2-1-2Z" />
   </svg>;
 }
 
