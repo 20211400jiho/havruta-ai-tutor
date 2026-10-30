@@ -15,7 +15,7 @@ function installFixtures() {
   const stages = ["개념 설명", "근거 확인", "생각 수정", "적용", "최종 정리"];
   const question = "개발이 필요한 경우 어떤 조건을 함께 고려해야 할까요?";
   const report = (count) => ({
-    learning_goal: "인간과 자연환경은 어떤 관계일까요?", checked_count: count, total_count: 5,
+    learning_goal: "인간과 자연환경은 어떤 관계일까요? 수식 확인: $y=ax$", checked_count: count, total_count: 5,
     stage: stages[count], objectives: stages.map((stage, index) => ({ stage, description: `${stage}을 자신의 말로 설명하기`, status: index < count ? "ai_checked" : "not_checked" })),
   });
   const old = {
@@ -23,8 +23,9 @@ function installFixtures() {
     state: "paused", stage: "생각 수정", checked_count: 2, total_count: 5, answer_count: 4,
     can_resume: true, can_restart: true, last_activity_at: "2026-10-25T03:00:00", last_question: question,
     messages: [
-      { id: 1, sender_type: "ai", content: "자연환경과 인간은 어떤 관계일까요?" },
-      { id: 2, sender_type: "user", content: "댐은 물을 공급하지만 생태계와 주민에게 피해를 줄 수도 있습니다." },
+      { id: 1, sender_type: "ai", content: String.raw`수식 표시 테스트: $y=ax$, $a\neq0$, $y=-3x$, $\frac{y}{x}=a$, $x^2+2x+1$, $2x-3=7$. 블록: \[x_1+x_2+x_3+x_4+x_5+x_6+x_7+x_8+x_9+x_{10}+x_{11}+x_{12}=100\]` },
+      { id: 2, sender_type: "user", content: String.raw`학생 답변: \(y=-3x\) 한글 English
+두 번째 줄. <script>window.__unsafe=true</script>` },
       { id: 3, sender_type: "ai", content: question, response_meta: { stage: "생각 수정", dialogue_state: { stage: "생각 수정" } } },
     ], learning_report: report(2),
   };
@@ -70,6 +71,11 @@ function installFixtures() {
       old.messages.push({ id: messageSequence++, sender_type: "user", content: body.content, response_meta: { help_action: body.help_action } }, message);
       data = { message, response_meta: meta, learning_report: report(2), feedback: { assessment: "unassessed", level: "힌트 단계", strengths: "도움 요청은 학습목표를 자동으로 체크하지 않아요." } };
     }
+    else if (path === "/notes") data = { notes: [{ id: 80, title: "수학 수식 복습", subject: "수학" }] };
+    else if (path === "/notes/80") data = { note: { id: 80, title: "수학 수식 복습", subject: "수학", sections: [
+      { title: "핵심 개념과 나의 설명", items: [String.raw`마지막 설명: 비율은 $\frac{y}{x}=a$입니다.`] },
+      { title: "학습 개요", items: ["이번 대화의 학습목표: $y=ax$ 설명하기"] },
+    ] } };
     else if (path === "/quizzes") data = { quizzes: [quizSummary()] };
     else if (path === "/quizzes/40") data = { quiz: { ...quizSummary(), questions } };
     else if (path === "/quizzes/40/submit") {
@@ -160,6 +166,17 @@ try {
   await click("이어서 학습");
   await wait("document.querySelector('.study-chat-container')");
   assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('2개 AI 확인')"));
+  await wait("document.querySelectorAll('.message-row.ai .katex').length === 7");
+  assert.equal(await evaluate("document.querySelectorAll('.message-row.user .katex').length"), 1);
+  assert.ok(await evaluate("!window.__unsafe && !document.querySelector('.bubble script')"));
+  await evaluate("document.querySelector('.learning-report-summary').click()");
+  assert.ok(await evaluate("Boolean(document.querySelector('.learning-report .katex'))"));
+  await evaluate("document.querySelector('.learning-report-summary').click(); document.querySelector('.chat-messages').scrollTop = 0");
+  await screenshot("math-desktop", 1280, 1100, false, ".chat-messages");
+  await screenshot("math-mobile-dark", 390, 1000, true, ".chat-messages");
+  assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"));
+  assert.ok(await evaluate("document.querySelector('.math-text-display').scrollWidth > document.querySelector('.math-text-display').clientWidth"), "Long display equation must scroll inside its container");
+  assert.ok(await evaluate("[...document.querySelectorAll('.katex .mord')].some(e => getComputedStyle(e).fontFamily.includes('KaTeX'))"));
   await evaluate(`(() => {
     const input = document.querySelector('.chat-input-bar textarea');
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, '작성 중인 나의 설명입니다.');
@@ -233,9 +250,16 @@ try {
   await click("다시 풀기");
   await wait("!document.querySelector('.quiz-review')");
   assert.equal(await evaluate("document.querySelectorAll('.quiz-option[aria-pressed=true]').length"), 0);
+  await click("정리노트");
+  await wait("document.querySelector('.note-open')");
+  await evaluate("document.querySelector('.note-open').click()");
+  await wait("document.querySelector('.note-takeaway .katex')");
+  await screenshot("math-note-mobile", 390, 1000, false);
+  assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"));
   assert.deepEqual(exceptions, []);
   console.log(JSON.stringify({ status: "passed", mockedApi: true, noProductionWrites: true,
     checks: ["resume choice instead of auto-open", "saved transcript preview", "resume preserves 2/5", "pause saves without finishing", "restart begins at 0/5", "no early answer leak", "wrong-answer explanation", "wrong-only filter", "restore last answer without resubmitting", "retry clears previous choices", "pause error retains chat", "restart error retains progress", "submit error retains choices", "no mobile horizontal overflow", "hint shortcut", "help preserves draft", "help never auto-checks goals", "help buttons disable while pending", "no duplicate help request", "help error preserves draft and rolls back optimistic message", "single hint option"],
+    mathChecks: ["six equations in AI chat", "student math", "four delimiters (SSR)", "math in learning report and note", "HTML inert", "KaTeX font loaded", "long equation scrolls without page overflow"],
     screenshots: output }, null, 2));
 } finally {
   socket?.close(); chrome?.kill(); await vite.close();

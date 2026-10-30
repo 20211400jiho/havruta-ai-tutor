@@ -22,7 +22,7 @@
 .note-detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--text-muted); font-size: 12px; }
 .note-page .note-detail-header h1 { margin: 16px 0 20px; font-size: clamp(23px, 2.5vw, 30px); line-height: 1.4; font-weight: 700; letter-spacing: -.6px; overflow-wrap: anywhere; }
 .note-goal { display: grid; gap: 6px; padding: 0 0 24px; color: var(--text-primary); font-size: 15px; line-height: 1.7; overflow-wrap: anywhere; }
-.note-goal > span { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.note-goal > span:not(.math-text) { color: var(--text-muted); font-size: 12px; font-weight: 600; }
 .note-page .note-paper h2 { margin: 0 0 12px; color: var(--text-primary); font-size: 15px; font-weight: 650; line-height: 1.5; letter-spacing: 0; }
 .note-takeaway { padding: 20px 22px; border-left: 3px solid var(--notebook-accent, #315bb5); border-radius: 0 6px 6px 0; background: var(--surface-muted); }
 .note-text p { white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -48,7 +48,7 @@
 .learning-report-step-content > p { margin-top: 4px; color: var(--report-muted); font-size: 13px; }
 .learning-report .is-checked .learning-report-status, .learning-report .is-checked .learning-report-step-number { color: var(--report-success); background: var(--report-success-bg); }
 .learning-report blockquote { margin: 10px 0 0; padding: 6px 12px; border-left: 2px solid var(--report-border); color: var(--report-muted); font-size: 13px; white-space: pre-wrap; }
-.learning-report blockquote > span { display: block; margin-bottom: 4px; font-size: 11px; }
+.learning-report blockquote > span:not(.math-text) { display: block; margin-bottom: 4px; font-size: 11px; }
 .learning-report-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .learning-report-comparison > div { padding: 16px; border: 1px solid var(--report-border); border-radius: 12px; min-width: 0; }
 .learning-report-comparison p { white-space: pre-wrap; }

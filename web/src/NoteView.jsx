@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { getNoteSummary } from "./noteSummary";
 import "./NoteView.css";
+import MathText from "./MathText";
 
 const formatDate = (value) => {
   if (!value) return "날짜 미기록";
@@ -13,7 +14,7 @@ function NoteText({ text }) {
   const [expanded, setExpanded] = useState(false);
   const long = text.length > 200;
   return <div className="note-text">
-    <p className={long && !expanded ? "note-text-preview" : ""}>{text}</p>
+    <p className={long && !expanded ? "note-text-preview" : ""}><MathText text={text} /></p>
     {long && <button type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? "접기" : "전체 내용 보기"}</button>}
   </div>;
 }
@@ -26,7 +27,7 @@ function NoteDetail({ note }) {
       <header className="note-detail-header">
         <div className="note-detail-meta"><span className="badge">{note.subject || "학습"}</span><span>{formatDate(note.created_at)}</span></div>
         <h1>{note.title}</h1>
-        {summary.goal && <p className="note-goal"><span>오늘의 질문</span>{summary.goal}</p>}
+        {summary.goal && <p className="note-goal"><span>오늘의 질문</span><MathText text={summary.goal} /></p>}
       </header>
 
       <section className="note-takeaway" aria-labelledby="note-explanation-title">
@@ -43,7 +44,7 @@ function NoteDetail({ note }) {
         <section className="note-summary-block note-review-block">
           <h2><span aria-hidden="true">02</span> 다음에 복습할 것</h2>
           <NoteText text={summary.review} />
-          {summary.question && summary.question !== summary.review && <details className="note-review-question"><summary>복습 질문 보기</summary><p>{summary.question}</p></details>}
+          {summary.question && summary.question !== summary.review && <details className="note-review-question"><summary>복습 질문 보기</summary><p><MathText text={summary.question} /></p></details>}
         </section>
       </div>
 
@@ -56,8 +57,8 @@ function NoteDetail({ note }) {
       <details className="note-archive">
         <summary>전체 학습 기록 · 참고 자료<span>원문 보기</span></summary>
         <div className="note-archive-body">
-          {(note.sections || []).map((section, sectionIndex) => <section key={sectionIndex} className="note-section"><h2>{section.title}</h2><ul>{(section.items || []).map((item, index) => <li key={index}>{item}</li>)}</ul></section>)}
-          {!note.sections?.length && <p className="note-raw-content">{note.content || "저장된 내용이 없어요."}</p>}
+          {(note.sections || []).map((section, sectionIndex) => <section key={sectionIndex} className="note-section"><h2>{section.title}</h2><ul>{(section.items || []).map((item, index) => <li key={index}><MathText text={item} /></li>)}</ul></section>)}
+          {!note.sections?.length && <p className="note-raw-content"><MathText text={note.content || "저장된 내용이 없어요."} /></p>}
         </div>
       </details>
     </article>

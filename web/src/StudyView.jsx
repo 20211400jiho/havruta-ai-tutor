@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import CurriculumSelector from "./CurriculumSelector";
 import LearningReport from "./LearningReport";
+import MathText from "./MathText";
 import InterruptedSessions from "./InterruptedSessions";
 import { ACTIVE_SESSION_KEY, getClientValue, removeClientValue, setClientValue } from "./clientStorage";
 import "./StudyView.css";
@@ -248,7 +249,7 @@ export default function StudyView({ user }) {
 {message.sender_type === "ai" ? `${AI_TUTOR_NAME} 🦉` : "나 🙋"}
 
 </span>
-              <div className="bubble"><span>{typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다."}</span></div>
+              <div className="bubble"><MathText text={message.content} /></div>
               {message.sender_type === "ai" && ["example", "simplify"].includes(messageMeta[message.id]?.help_action) && <span className="study-help-label">{messageMeta[message.id].help_action === "example" ? "예시로 이해하기" : "쉬운 말로 이해하기"}</span>}
               {message.sender_type === "ai" && <HintPanel hint={messageMeta[message.id]?.hint} />}
               {message.sender_type === "ai" && messageMeta[message.id] && <EvidencePanel meta={messageMeta[message.id]} />}
@@ -282,7 +283,7 @@ function HintPanel({ hint }) {
   return <aside className="tutor-hint" aria-label="생각을 돕는 힌트">
     <span className="tutor-hint-label">{hint.trigger === "stalled" ? "잠깐, 생각의 단서" : "생각을 돕는 힌트"} · {Math.min(3, Math.max(1, Number(hint.level) || 1))}단계</span>
     <ul className="tutor-hint-keywords">{keywords.map((word) => <li key={word}>{word}</li>)}</ul>
-    {typeof hint.text === "string" && hint.text && <p>{hint.text}</p>}
+    {typeof hint.text === "string" && hint.text && <p><MathText text={hint.text} /></p>}
     <small>단어만 따라 쓰기보다, 떠오르는 생각과 이유를 말해보세요.</small>
   </aside>;
 }

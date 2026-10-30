@@ -1,0 +1,7 @@
+.math-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.math-text .katex { font-size: 1.05em; line-height: normal; white-space: normal; overflow-wrap: normal; }
+.math-text-inline { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; padding-block: .12em; }
+.math-text-display { display: block; max-width: 100%; overflow-x: auto; padding-block: .25em; }
+.math-text .katex-display { margin: .35em 0; text-align: center; }
+.math-text .katex-display > .katex { white-space: nowrap; }
+.math-text .katex-error { color: inherit !important; white-space: pre-wrap; overflow-wrap: anywhere; }
