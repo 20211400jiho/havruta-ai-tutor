@@ -31,6 +31,7 @@ function installFixtures() {
   const fresh = { ...old, id: 11, checked_count: 0, answer_count: 0, state: "questioning", stage: "개념 설명", learning_report: report(0),
     messages: [{ id: 4, sender_type: "ai", content: "자연환경과 인간은 어떤 관계일까요?", response_meta: { stage: "개념 설명" } }] };
   let restarted = false;
+  let messageSequence = 20;
   const questions = [
     { id: 101, question: "하천 오염을 줄이기 위해 물을 어떻게 처리해야 할까요?", options: ["처리 없이 배출", "오염물질을 제거한 후 배출", "숲의 면적 측정", "홍수량 측정"] },
     { id: 102, question: "개발 사업을 판단할 때 무엇을 함께 고려해야 하나요?", options: ["일자리 수만 고려", "경제적 이익과 환경·주민의 영향", "편리함만 고려", "홍보 자료만 참고"] },
@@ -41,10 +42,12 @@ function installFixtures() {
   window.fetch = async (input, options = {}) => {
     const path = new URL(input, location.href).pathname;
     const method = options.method || "GET";
-    window.__calls.push({ path, method });
+    const body = options.body ? JSON.parse(options.body) : null;
+    window.__calls.push({ path, method, body });
     if ((path.endsWith("/pause") && window.__failPause)
         || (path.endsWith("/restart") && window.__failRestart)
-        || (path.endsWith("/submit") && window.__failSubmit)) {
+        || (path.endsWith("/submit") && window.__failSubmit)
+        || (path.endsWith("/messages") && window.__failHelp)) {
       return new Response(JSON.stringify({ detail: "테스트용 일시 오류" }), { status: 503 });
     }
     let data;
@@ -55,6 +58,19 @@ function installFixtures() {
     else if (path === "/sessions/10/pause") { old.state = "paused"; data = { ...payload(old), message: "대화와 진행 상태를 저장했습니다." }; }
     else if (path === "/sessions/10/restart") { restarted = true; old.state = "paused"; data = { ...payload(fresh), restarted_from_session_id: 10 }; }
     else if (path === "/sessions/10") data = payload(old);
+    else if (path === "/sessions/10/messages") {
+      if (window.__delayHelp) await new Promise((resolve) => { window.__releaseHelp = resolve; });
+      const example = body.help_action === "example";
+      const simplify = body.help_action === "simplify";
+      const meta = {
+        stage: "생각 수정", ai_provider: "openai", help_action: body.help_action, sources: [],
+        hint: example || simplify ? null : { level: 1, trigger: "requested", keywords: ["개발의 이익", "주변의 영향"], text: "영향을 받는 사람이나 환경을 떠올려보세요." },
+      };
+      const message = { id: messageSequence++, sender_type: "ai", response_meta: meta,
+        content: example ? "가상의 예로 학교 운동장에 새 시설을 만드는 상황을 생각해보세요. 편리해지는 점과 주변 공간을 쓰는 사람의 생활을 함께 살펴볼 수 있어요. 누구의 생활이 달라질까요?" : simplify ? "쉽게 말하면 개발은 편리함을 주지만 다른 사람과 환경도 바꿀 수 있어요. 이익과 영향을 함께 살펴보자는 뜻이에요. 어떤 부분이 아직 헷갈리나요?" : "정답 대신 생각을 시작할 단서를 줄게요. 개발로 달라지는 대상은 누구일까요?" };
+      old.messages.push({ id: messageSequence++, sender_type: "user", content: body.content, response_meta: { help_action: body.help_action } }, message);
+      data = { message, response_meta: meta, learning_report: report(2), feedback: { assessment: "unassessed", level: example ? "예시로 이해하기" : simplify ? "쉬운 말로 이해하기" : "힌트 단계", strengths: "도움 요청은 학습목표를 자동으로 체크하지 않아요." } };
+    }
     else if (path === "/quizzes") data = { quizzes: [quizSummary()] };
     else if (path === "/quizzes/40") data = { quiz: { ...quizSummary(), questions } };
     else if (path === "/quizzes/40/submit") {
@@ -121,9 +137,10 @@ try {
     await wait(`[...document.querySelectorAll('button')].some(button => button.textContent.trim() === ${JSON.stringify(text)} && !button.disabled)`);
     await evaluate(`[...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(text)}).click()`);
   };
-  const screenshot = async (name, width, height, dark = false) => {
+  const screenshot = async (name, width, height, dark = false, targetSelector = null) => {
     await cdp("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 });
     await evaluate(`document.documentElement.setAttribute('data-theme', '${dark ? "dark" : "light"}'); window.scrollTo(0, 0); document.fonts.ready.then(() => true)`);
+    if (targetSelector) await evaluate(`document.querySelector(${JSON.stringify(targetSelector)}).scrollIntoView({block: 'end', behavior: 'instant'})`);
     await delay(150);
     const capture = await cdp("Page.captureScreenshot", { format: "png" });
     await writeFile(`${output}/${name}.png`, Buffer.from(capture.data, "base64"));
@@ -144,6 +161,41 @@ try {
   await click("이어서 학습");
   await wait("document.querySelector('.study-chat-container')");
   assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('2개 AI 확인')"));
+  await evaluate(`(() => {
+    const input = document.querySelector('.chat-input-bar textarea');
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, '작성 중인 나의 설명입니다.');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    window.__delayHelp = true;
+  })()`);
+  await click("힌트 받기");
+  await wait("typeof window.__releaseHelp === 'function'");
+  assert.ok(await evaluate("[...document.querySelectorAll('.study-help-actions button')].every(button => button.disabled)"));
+  await evaluate("document.querySelector('.study-help-actions button').click()");
+  assert.equal(await evaluate("window.__calls.filter(call => call.path.endsWith('/messages')).length"), 1);
+  assert.equal(await evaluate("document.querySelector('.chat-input-bar textarea').value"), "작성 중인 나의 설명입니다.");
+  await evaluate("window.__delayHelp = false; window.__releaseHelp()");
+  await wait("document.querySelector('.tutor-hint') && !document.querySelector('.study-help-actions button').disabled");
+  assert.equal(await evaluate("window.__calls.find(call => call.path.endsWith('/messages')).body.help_action"), "hint");
+  await click("예시로 설명");
+  await wait("document.querySelector('.study-help-label')");
+  assert.ok(await evaluate("document.querySelector('.chat-messages').textContent.includes('가상의 예로 학교 운동장')"));
+  assert.equal(await evaluate("document.querySelector('.chat-input-bar textarea').value"), "작성 중인 나의 설명입니다.");
+  assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('2개 AI 확인')"));
+  assert.equal(await evaluate("document.querySelectorAll('.study-help-actions button').length"), 3);
+  await click("쉽게 설명");
+  await wait("[...document.querySelectorAll('.study-help-label')].some(label => label.textContent.includes('쉬운 말로 이해하기'))");
+  assert.ok(await evaluate("document.querySelector('.chat-messages').textContent.includes('쉽게 말하면 개발은')"));
+  assert.equal(await evaluate("document.querySelector('.chat-input-bar textarea').value"), "작성 중인 나의 설명입니다.");
+  assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('2개 AI 확인')"));
+  await screenshot("help-shortcuts-desktop", 1280, 1100, false, ".chat-input-bar");
+  await screenshot("help-shortcuts-mobile-dark", 390, 1000, true, ".chat-input-bar");
+  assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"));
+  await evaluate("window.__failHelp = true");
+  await click("힌트 받기");
+  await wait("document.querySelector('.study-error')");
+  assert.equal(await evaluate("document.querySelector('.chat-input-bar textarea').value"), "작성 중인 나의 설명입니다.");
+  assert.equal(await evaluate("document.querySelectorAll('.message-row').length"), 9);
+  await evaluate("window.__failHelp = false");
   await evaluate("window.__failPause = true");
   await click("저장하고 나가기");
   await wait("document.querySelector('.study-error')");
@@ -191,7 +243,7 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.quiz-option[aria-pressed=true]').length"), 0);
   assert.deepEqual(exceptions, []);
   console.log(JSON.stringify({ status: "passed", mockedApi: true, noProductionWrites: true,
-    checks: ["resume choice instead of auto-open", "saved transcript preview", "resume preserves 2/5", "pause saves without finishing", "restart begins at 0/5", "no early answer leak", "wrong-answer explanation", "wrong-only filter", "restore last answer without resubmitting", "retry clears previous choices", "pause error retains chat", "restart error retains progress", "submit error retains choices", "no mobile horizontal overflow"],
+    checks: ["resume choice instead of auto-open", "saved transcript preview", "resume preserves 2/5", "pause saves without finishing", "restart begins at 0/5", "no early answer leak", "wrong-answer explanation", "wrong-only filter", "restore last answer without resubmitting", "retry clears previous choices", "pause error retains chat", "restart error retains progress", "submit error retains choices", "no mobile horizontal overflow", "hint shortcut", "example shortcut", "help preserves draft", "help never auto-checks goals", "help buttons disable while pending", "no duplicate help request", "help error preserves draft and rolls back optimistic message", "simplify shortcut", "three distinct help options"],
     screenshots: output }, null, 2));
 } finally {
   socket?.close(); chrome?.kill(); await vite.close();

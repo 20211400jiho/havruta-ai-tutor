@@ -45,13 +45,16 @@ def test_explicit_help_shows_cues_without_answer_or_check(monkeypatch):
     assert feedback["assessment"] == "unassessed"
 
 
-def test_third_nonprogressing_turn_automatically_shows_hint(monkeypatch):
-    state = DialogueState(stage="근거 확인", focus_question=QUESTION, last_question=QUESTION, stage_turns=2)
-    text, _, _, meta = reply(monkeypatch, state, "그냥 좋아 보여요")
-    assert meta["hint"]["trigger"] == "stalled"
-    assert meta["dialogue_state"]["stage_turns"] == 3
+@pytest.mark.parametrize("previous_turns", [2, 4, 20])
+def test_nonprogressing_turn_does_not_force_hint_or_replace_feedback(monkeypatch, previous_turns):
+    state = DialogueState(stage="근거 확인", focus_question=QUESTION, last_question=QUESTION, stage_turns=previous_turns)
+    model = turn(explanation="좋다고 생각한 부분을 현재 개념과 연결해 살펴볼게요.")
+    text, _, _, meta = reply(monkeypatch, state, "그냥 좋아 보여요", model)
+    assert meta["hint"] is None
+    assert meta["dialogue_state"]["stage_turns"] == previous_turns + 1
     assert not meta["dialogue_state"]["evidence"]
-    assert "폐수 처리 시설" not in text
+    assert text.startswith(model.explanation)
+    assert "조금 더 쉽게 나누어" not in text
 
 
 def test_no_automatic_hint_before_threshold(monkeypatch):
@@ -118,9 +121,16 @@ def test_provider_failure_uses_safe_hint_not_full_reference_answer(monkeypatch):
 
 
 def test_completed_learning_does_not_trigger_stalled_hint():
-    state = DialogueState(stage="최종 정리", last_intent="hint", stage_turns=10,
+    state = DialogueState(stage="최종 정리", last_intent="answer", stage_turns=10,
                           evidence=[{"stage": "최종 정리"}])
     assert build_hint(state, turn()) is None
+
+
+def test_explicit_hint_remains_available_for_review_after_goals_checked():
+    state = DialogueState(stage="최종 정리", last_intent="hint", stage_turns=10,
+                          evidence=[{"stage": "최종 정리"}])
+    assert build_hint(state, turn())["trigger"] == "requested"
+    assert state.evidence == [{"stage": "최종 정리"}]
 
 
 def test_strict_schema_requires_hint_fields_but_legacy_model_still_loads():
@@ -128,8 +138,10 @@ def test_strict_schema_requires_hint_fields_but_legacy_model_still_loads():
     assert set(schema["required"]) == set(schema["properties"])
     assert schema["additionalProperties"] is False
     assert "default" not in schema["properties"]["hint_text"]
-    old = turn().model_dump(exclude={"hint_keywords", "hint_text"})
+    old = turn().model_dump(exclude={"hint_keywords", "hint_text", "answer_status"})
     assert ProgressiveTutorTurn.model_validate(old).hint_keywords == []
+    assert ProgressiveTutorTurn.model_validate(old).answer_status == "unassessed"
+    assert "answer_status" in schema["required"]
 
 
 @pytest.mark.parametrize("words", [["키워드"] * 4, ["아" * 25]])

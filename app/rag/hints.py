@@ -1,7 +1,5 @@
 """Progressive thinking cues, separate from both answer text and mastery evidence."""
-from app.rag.dialogue import ProgressiveTutorTurn, STAGES
-
-AUTO_HINT_AFTER_TURNS = 3
+from app.rag.dialogue import ProgressiveTutorTurn
 
 STAGE_CUES = {
     "개념 설명": (["뜻", "특징", "예시"], "정의를 완성하려 하지 말고, 떠오르는 특징 하나를 골라보세요."),
@@ -23,12 +21,10 @@ def tutor_response_schema() -> dict:
 
 
 def needs_hint(state) -> bool:
-    completed = state.stage == STAGES[-1] and any(
-        item.get("stage") == STAGES[-1] for item in state.evidence
-    )
-    if completed or state.assessment == "understood":
-        return False
-    return state.last_intent == "hint" or state.stage_turns >= AUTO_HINT_AFTER_TURNS
+    # Turn count is not evidence that the student is stuck. Only explicit help
+    # (including "모르겠어요") activates hints; ordinary answers keep their feedback.
+    # Explicit requests also remain available for review after all goals are checked.
+    return state.last_intent == "hint"
 
 
 def build_hint(state, turn: ProgressiveTutorTurn | None) -> dict | None:
@@ -41,7 +37,7 @@ def build_hint(state, turn: ProgressiveTutorTurn | None) -> dict | None:
     state.last_hint_keywords = list(keywords)
     return {
         "level": min(state.scaffold_count, 3),
-        "trigger": "requested" if state.last_intent == "hint" else "stalled",
+        "trigger": "requested",
         "keywords": keywords,
         "text": text,
         "notice": "생각을 돕는 단서예요. 단어를 그대로 쓰기보다 내 생각과 이유를 설명해보세요.",

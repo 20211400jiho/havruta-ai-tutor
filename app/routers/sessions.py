@@ -295,7 +295,10 @@ def send_message(
     if session.state == "finished":
         raise HTTPException(status_code=409, detail="이미 종료된 세션입니다.")
     enforce_ai_quota(db, user.id, "tutor_message")
-    user_message = Message(session_id=session.id, sender_type="user", content=payload.content.strip())
+    user_message = Message(
+        session_id=session.id, sender_type="user", content=payload.content.strip(),
+        response_meta_json={"help_action": payload.help_action} if payload.help_action else None,
+    )
     db.add(user_message)
     db.flush()
     history = (
@@ -315,6 +318,7 @@ def send_message(
         conversation_history=[message_dict(message) for message in history],
         school_level=session.school_level,
         grade=session.grade,
+        **({"help_action": payload.help_action} if payload.help_action else {}),
     )
     feedback = AIFeedback(
         session_id=session.id,

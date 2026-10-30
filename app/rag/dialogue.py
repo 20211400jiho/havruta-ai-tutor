@@ -48,6 +48,8 @@ class ProgressiveTutorTurn(TutorTurn):
     # Defaults keep stored/legacy responses readable; the API schema requires both fields.
     hint_keywords: list[str] = Field(default_factory=list, max_length=3)
     hint_text: str = Field(default="", max_length=180)
+    # Correctness of the latest sub-answer is separate from stage completion.
+    answer_status: Literal["correct", "partial", "incorrect", "unassessed"] = "unassessed"
 
     @field_validator("hint_keywords")
     @classmethod
@@ -67,9 +69,11 @@ class DialogueState(BaseModel):
     last_question: str = Field(default="", max_length=1000)
     hint_count: int = Field(default=0, ge=0, le=10000)
     scaffold_count: int = Field(default=0, ge=0, le=10000)
+    example_count: int = Field(default=0, ge=0, le=10000)
     last_hint_keywords: list[str] = Field(default_factory=list, max_length=3)
     last_intent: str = "start"
     assessment: str = "unassessed"
+    answer_status: Literal["correct", "partial", "incorrect", "unassessed"] = "unassessed"
     assessment_issue: str = ""
     assessment_message: str = ""
     misconception: str = Field(default="", max_length=600)
@@ -111,6 +115,13 @@ def restore_state(history: list[dict]) -> DialogueState:
 
 def classify_intent(answer: str) -> str:
     normalized = re.sub(r"[\s.!?~？]+", "", answer).lower()
+    # A request for an example is help, not a student explaining their own example.
+    if re.search(r"(?:예시|예를|사례).{0,18}(?:설명해(?:줘|주세요)|들어(?:줘|주세요)|보여(?:줘|주세요)|알려(?:줘|주세요))$", normalized):
+        return "example"
+    if normalized in {"쉽게설명", "쉽게설명해줘", "쉬운말로설명해줘"} or re.search(
+        r"(?:쉽게|쉬운말로|간단하게).{0,12}(?:설명해(?:줘|주세요)|풀어(?:줘|주세요)|말해(?:줘|주세요))$", normalized,
+    ):
+        return "simplify"
     if any(marker in normalized for marker in (
         "몰라", "모르겠", "잘모르", "이해가안", "이해안", "이해못", "어려워",
         "어렵다", "힌트", "도와줘", "설명해줘", "다시설명",
@@ -131,7 +142,7 @@ def classify_intent(answer: str) -> str:
     return "answer"
 
 
-def prepare_state(history: list[dict], topic: str, answer: str) -> DialogueState:
+def prepare_state(history: list[dict], topic: str, answer: str, help_action: str | None = None) -> DialogueState:
     state = restore_state(history).model_copy(deep=True)
     state.focus_question = state.focus_question or f"{topic}의 핵심 개념은 무엇인가요?"[:1000]
     state.last_question = state.last_question or state.focus_question
@@ -143,9 +154,12 @@ def prepare_state(history: list[dict], topic: str, answer: str) -> DialogueState
     state.question_guard = ""
     # A previous turn's understanding must not suppress help on the new question.
     state.assessment = "unassessed"
-    state.last_intent = classify_intent(answer)
+    state.answer_status = "unassessed"
+    state.last_intent = help_action if help_action in {"hint", "example", "simplify"} else classify_intent(answer)
     if state.last_intent == "hint":
         state.hint_count = min(state.hint_count + 1, 10000)
+    elif state.last_intent == "example":
+        state.example_count = min(state.example_count + 1, 10000)
     return state
 
 
@@ -171,6 +185,9 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
     if hint_only and state.stage != STAGES[0] and turn.assessment == "understood":
         state.assessment = "partial"
         quoted = False
+    # This remains an AI-provisional, sourced/quoted signal, not a new mastery gate.
+    state.answer_status = (getattr(turn, "answer_status", "unassessed")
+                           if state.last_intent == "answer" and quoted and supported else "unassessed")
     state.transition_reason = "이해 확인이 충분하지 않아 현재 단계를 유지합니다."
     if state.last_intent == "answer" and turn.assessment == "misconception":
         state.misconception = turn.misconception
@@ -188,6 +205,7 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
         state.focus_question = turn.next_question
         state.hint_count = 0
         state.scaffold_count = 0
+        state.example_count = 0
         state.last_hint_keywords = []
         state.stage_turns = 0
         state.misconception = ""
@@ -200,6 +218,10 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
         state.assessment_message = (
             "괜찮아요. 힌트에서 떠오르는 생각 하나부터 이야기해보세요."
             if state.last_intent == "hint" else
+            "예시로 개념을 살펴보는 중이에요. 예시를 보고 자신의 생각을 설명하면 확인할게요."
+            if state.last_intent == "example" else
+            "같은 내용을 쉬운 말로 살펴보는 중이에요. 설명을 듣는 것만으로 학습목표를 체크하지 않아요."
+            if state.last_intent == "simplify" else
             "지금은 질문이나 도움 요청에 답하는 중이에요. 이해한 내용을 설명하면 확인할게요."
         )
     elif state.assessment == "partial":
@@ -233,6 +255,15 @@ def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str
     expected = "review" if completed else QUESTION_GOALS[state.stage]
     supported = state.last_intent != "answer" or state.assessment != "understood"
     allowed = {expected, "scaffold"} if supported else {expected}
+    if state.last_intent == "answer" and state.answer_status == "correct" and state.assessment != "understood":
+        # A correct calculation can still need reasoning, without going back to
+        # elementary comparisons merely because the whole stage is not complete.
+        allowed.add("reason")
+        if turn.next_question_goal == "scaffold":
+            anchor = turn.evidence_quote.strip()[:180]
+            turn.next_question = f"‘{anchor}’라는 결과를 설명하는 개념이나 이유는 무엇일까요?"
+            turn.next_question_goal = "reason"
+            state.question_guard = "맞힌 답변을 기초 문제로 되돌리지 않고 이유로 연결"
     repeated = question_repeats(turn.next_question, state.recent_questions + state.answered_questions)
     if turn.next_question_goal in allowed and not repeated:
         question, goal = turn.next_question, turn.next_question_goal
@@ -271,6 +302,8 @@ def learning_report(history: list[dict], topic: str) -> dict:
     evidence = {item.get("stage"): item for item in state.evidence if item.get("stage") in STAGES}
     answers = [str(item.get("content") or "").strip() for item in history
                if item.get("sender_type") == "user" and str(item.get("content") or "").strip()
+               and not (isinstance(item.get("response_meta"), dict)
+                        and item["response_meta"].get("help_action") in {"hint", "example", "simplify"})
                and classify_intent(str(item.get("content") or "")) == "answer"]
     objectives = [{
         "stage": stage, "description": description,

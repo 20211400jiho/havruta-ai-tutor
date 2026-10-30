@@ -9,6 +9,11 @@ import "./StudyView.css";
 const AI_TUTOR_NAME = "하루";
 
 const SUBJECTS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
+const HELP_OPTIONS = [
+  { action: "hint", label: "힌트 받기", pending: "힌트 요청 중…", message: "지금 질문에 대한 힌트를 주세요." },
+  { action: "example", label: "예시로 설명", pending: "예시 요청 중…", message: "지금 질문을 쉬운 예시로 설명해 주세요." },
+  { action: "simplify", label: "쉽게 설명", pending: "설명 요청 중…", message: "지금 내용을 쉬운 말로 다시 설명해 주세요." },
+];
 
 export default function StudyView({ user }) {
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -29,8 +34,11 @@ export default function StudyView({ user }) {
   const [completedReport, setCompletedReport] = useState(null);
   const [ragStatus, setRagStatus] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [pendingHelp, setPendingHelp] = useState(null);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+  const messagePending = useRef(false);
+  const messageSequence = useRef(0);
   const topic = curriculumSelection?.subject === selectedSubject ? curriculumSelection.topic : "";
   const displayedTopic = activeSession?.topic || topic;
   const currentRagStatus = ragStatus?.subject === selectedSubject ? ragStatus : null;
@@ -154,13 +162,21 @@ export default function StudyView({ user }) {
 
   const send = async (event) => {
     event.preventDefault();
-    const content = input.trim();
-    if (!content || loading) return;
-    const localId = `local-${Date.now()}`;
+    await sendMessage(input.trim());
+  };
+
+  const sendMessage = async (content, helpAction = null) => {
+    if (!content || loading || messagePending.current || !sessionId) return;
+    messagePending.current = true;
+    const localId = `local-${sessionId}-${++messageSequence.current}`;
     setMessages((current) => [...current, { id: localId, sender_type: "user", content }]);
-    setInput(""); setLoading(true); setError("");
+    // Help is a separate request: never submit or erase an unfinished answer.
+    if (!helpAction) setInput("");
+    setPendingHelp(helpAction); setLoading(true); setError("");
     try {
-      const result = await api(`/sessions/${sessionId}/messages`, { method: "POST", body: JSON.stringify({ content }) });
+      const result = await api(`/sessions/${sessionId}/messages`, {
+        method: "POST", body: JSON.stringify({ content, ...(helpAction ? { help_action: helpAction } : {}) }),
+      });
       if (!result?.message || typeof result.message.content !== "string") {
         throw new Error("AI 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
       }
@@ -177,11 +193,13 @@ export default function StudyView({ user }) {
       setResponseMeta(result.response_meta || null);
     } catch (requestError) {
       setMessages((current) => current.filter((message) => message.id !== localId));
-      setInput(content);
-      setError(`${requestError.message} 입력 내용은 복구했습니다.`);
+      if (!helpAction) setInput((current) => current || content);
+      setError(`${requestError.message} ${helpAction ? "작성 중인 답변은 그대로 남아 있어요." : "입력 내용은 복구했습니다."}`);
     }
-    finally { setLoading(false); }
+    finally { messagePending.current = false; setLoading(false); setPendingHelp(null); }
   };
+
+  const requestHelp = (option) => sendMessage(option.message, option.action);
 
   const finish = async () => {
     setLoading(true);
@@ -235,6 +253,7 @@ export default function StudyView({ user }) {
 
 </span>
               <div className="bubble"><span>{typeof message.content === "string" ? message.content : "메시지를 표시할 수 없습니다."}</span></div>
+              {message.sender_type === "ai" && ["example", "simplify"].includes(messageMeta[message.id]?.help_action) && <span className="study-help-label">{messageMeta[message.id].help_action === "example" ? "예시로 이해하기" : "쉬운 말로 이해하기"}</span>}
               {message.sender_type === "ai" && <HintPanel hint={messageMeta[message.id]?.hint} />}
               {message.sender_type === "ai" && messageMeta[message.id] && <EvidencePanel meta={messageMeta[message.id]} />}
             </div>
@@ -243,11 +262,21 @@ export default function StudyView({ user }) {
         {loading && <div className="message-row ai" role="status"><div className="bubble"><span>생각을 정리하고 있어요...</span></div></div>}
         <div ref={bottomRef} />
       </div>
-      {feedback && <div className="feedback-strip"><div><strong>설명 수준 {formatFeedback(feedback.level, "분석 중")}</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div>{feedback.assessment ? <div className="rubric-scores"><span>AI의 잠정 피드백 · 정답률이 아닙니다</span></div> : <div className="rubric-scores"><span>개념 {feedback.rubric?.concept ?? "-"}/40</span><span>근거 {feedback.rubric?.reasoning ?? "-"}/30</span><span>명료성 {feedback.rubric?.clarity ?? "-"}/20</span><span>참여 {feedback.rubric?.engagement ?? "-"}/10</span></div>}</div>}
+      {feedback && <div className="feedback-strip"><div><strong>{responseMeta?.help_action ? "학습 도움" : "대화 피드백"} · {formatFeedback(feedback.level, "분석 중")}</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div>{feedback.assessment ? <div className="rubric-scores"><span>AI의 잠정 피드백 · 정답률이 아닙니다</span></div> : <div className="rubric-scores"><span>개념 {feedback.rubric?.concept ?? "-"}/40</span><span>근거 {feedback.rubric?.reasoning ?? "-"}/30</span><span>명료성 {feedback.rubric?.clarity ?? "-"}/20</span><span>참여 {feedback.rubric?.engagement ?? "-"}/10</span></div>}</div>}
       {error && <p className="study-error">{error}</p>}
-      <form className="chat-input-bar" onSubmit={send}><textarea rows={2} aria-label="내 생각과 풀이 과정" value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 그 이유를 적어보세요." /><button className="send-btn" disabled={loading || !input.trim()}>보내기</button></form>
+      <div className="study-help-actions" role="group" aria-label="하루에게 학습 도움 요청">
+        <span id="study-help-description">막혔다면 하루에게 도움을 요청해보세요.</span>
+        <div>{HELP_OPTIONS.map((option) => <button key={option.action} type="button" disabled={loading} onClick={() => requestHelp(option)}><HelpIcon kind={option.action} />{pendingHelp === option.action ? option.pending : option.label}</button>)}</div>
+      </div>
+      <form className="chat-input-bar" onSubmit={send}><textarea rows={2} aria-label="내 생각과 풀이 과정" aria-describedby="study-help-description" value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 그 이유를 적어보세요." /><button className="send-btn" disabled={loading || !input.trim()}>보내기</button></form>
     </div>
   );
+}
+
+function HelpIcon({ kind }) {
+  return <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === "hint" ? <path d="M9 18h6M10 21h4M8 14a6 6 0 1 1 8 0c-1 .8-1 1.4-1 2H9c0-.6 0-1.2-1-2Z" /> : kind === "example" ? <><path d="M12 5v15M3 4h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v14h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3Z" /><path d="M6 8h3m6 0h3M6 12h3m6 0h3" /></> : <path d="M4 6h16M4 12h11M4 18h7" />}
+  </svg>;
 }
 
 function HintPanel({ hint }) {

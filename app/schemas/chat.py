@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -11,6 +13,7 @@ class SessionCreateRequest(BaseModel):
 
 class MessageCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=5000)
+    help_action: Literal["hint", "example", "simplify"] | None = None
 
 
 class CollaborativeFeedbackRequest(BaseModel):
