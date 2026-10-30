@@ -193,6 +193,8 @@ try {
   assert.equal(await evaluate("document.querySelector('.chat-input-bar textarea').value"), "작성 중인 나의 설명입니다.");
   await evaluate("window.__delayHelp = false; window.__releaseHelp()");
   await wait("document.querySelector('.tutor-hint') && !document.querySelector('.study-help-actions button').disabled");
+  assert.ok(await evaluate("!document.querySelector('.feedback-strip').textContent.includes('AI의 잠정 피드백') && !document.querySelector('.feedback-strip').textContent.includes('정답률이 아닙니다')"));
+  assert.ok(await evaluate("document.querySelector('.feedback-strip').textContent.includes('도움 요청은 학습목표를 자동으로 체크하지 않아요.')"), "Keep the feedback itself while removing the disclaimer badge");
   assert.equal(await evaluate("window.__calls.find(call => call.path.endsWith('/messages')).body.help_action"), "hint");
   assert.equal(await evaluate("document.querySelector('.chat-input-bar textarea').value"), "작성 중인 나의 설명입니다.");
   assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('2개 AI 확인')"));

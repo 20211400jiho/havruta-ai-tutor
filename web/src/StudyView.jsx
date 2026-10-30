@@ -259,7 +259,7 @@ export default function StudyView({ user }) {
         {loading && <div className="message-row ai" role="status"><div className="bubble"><span>생각을 정리하고 있어요...</span></div></div>}
         <div ref={bottomRef} />
       </div>
-      {feedback && <div className="feedback-strip"><div><strong>{responseMeta?.help_action ? "학습 도움" : "대화 피드백"} · {formatFeedback(feedback.level, "분석 중")}</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div>{feedback.assessment ? <div className="rubric-scores"><span>AI의 잠정 피드백 · 정답률이 아닙니다</span></div> : <div className="rubric-scores"><span>개념 {feedback.rubric?.concept ?? "-"}/40</span><span>근거 {feedback.rubric?.reasoning ?? "-"}/30</span><span>명료성 {feedback.rubric?.clarity ?? "-"}/20</span><span>참여 {feedback.rubric?.engagement ?? "-"}/10</span></div>}</div>}
+      {feedback && <div className="feedback-strip"><div><strong>{responseMeta?.help_action ? "학습 도움" : "대화 피드백"} · {formatFeedback(feedback.level, "분석 중")}</strong><span>{formatFeedback(feedback.strengths, "피드백을 확인해보세요.")}</span></div>{!feedback.assessment && <div className="rubric-scores"><span>개념 {feedback.rubric?.concept ?? "-"}/40</span><span>근거 {feedback.rubric?.reasoning ?? "-"}/30</span><span>명료성 {feedback.rubric?.clarity ?? "-"}/20</span><span>참여 {feedback.rubric?.engagement ?? "-"}/10</span></div>}</div>}
       {error && <p className="study-error">{error}</p>}
       <div className="study-help-actions" role="group" aria-label="하루에게 학습 도움 요청">
         <span id="study-help-description">막혔다면 하루에게 도움을 요청해보세요.</span>
