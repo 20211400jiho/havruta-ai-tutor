@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "./api";
 
-export default function InterruptedSessions({ sessions, suggestedId, loading, onResume, onRestart }) {
+export default function InterruptedSessions({ sessions, suggestedId, loading, onResume, onRestart, onDelete }) {
   const [showAll, setShowAll] = useState(false);
   const [previews, setPreviews] = useState({});
   const [pendingId, setPendingId] = useState(null);
@@ -33,6 +33,7 @@ export default function InterruptedSessions({ sessions, suggestedId, loading, on
       </details>
       <div className="resume-actions"><button type="button" disabled={loading || session.can_resume === false} onClick={() => onResume(session)}>이어서 학습</button><button type="button" className="resume-restart" disabled={loading || session.can_restart === false} onClick={() => onRestart(session)}>처음부터 다시</button></div>
       {session.can_resume === false && <p className="resume-intro">이 학습방은 더 이상 이용할 수 없어 기록만 볼 수 있어요.</p>}
+      {session.can_delete && <button type="button" className="resume-delete" disabled={loading} onClick={() => onDelete(session)}>기록 삭제</button>}
     </article>)}
     {sessions.length > 3 && <button type="button" className="resume-show-all" onClick={() => setShowAll(!showAll)}>{showAll ? "최근 3개만 보기" : `중단된 학습 ${sessions.length}개 모두 보기`}</button>}
     <small className="resume-notice">AI 확인은 대화에서 수집한 잠정적 이해 근거이며, 시험 점수나 숙달도는 아니에요. 처음부터 다시 시작해도 기존 기록은 삭제하지 않아요.</small>

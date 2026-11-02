@@ -143,6 +143,19 @@ export default function StudyView({ user }) {
     finally { setLoading(false); }
   };
 
+  const deleteSession = async (targetSession) => {
+    if (loading || !window.confirm(`‘${targetSession.topic || "학습"}’ 기록을 삭제할까요?\n이 학습의 대화와 진행 기록이 영구 삭제되며 복구할 수 없습니다. 다른 학습과 정리노트는 유지됩니다.`)) return;
+    setLoading(true); setError("");
+    try {
+      const result = await api(`/sessions/${targetSession.id}`, { method: "DELETE" });
+      setOpenSessions((current) => current.filter((item) => item.id !== targetSession.id));
+      if (Number(getClientValue(ACTIVE_SESSION_KEY)) === targetSession.id) removeClientValue(ACTIVE_SESSION_KEY);
+      setSuggestedId((current) => current === targetSession.id ? null : current);
+      setNotice(result.message);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setLoading(false); }
+  };
+
   const pauseSession = async () => {
     if (loading || (input.trim() && !window.confirm("아직 보내지 않은 입력은 저장되지 않아요. 대화 기록과 진행 상태를 저장하고 나갈까요?"))) return;
     setLoading(true); setError("");
@@ -220,7 +233,7 @@ export default function StudyView({ user }) {
       {notice && <p className="study-saved-notice" role="status">{notice}</p>}
       {sessionsLoading && <p role="status">저장된 학습을 확인하고 있어요.</p>}
       {sessionsError && <p className="study-error" role="alert">학습 기록을 불러오지 못했어요. <button type="button" onClick={reloadSessions}>다시 불러오기</button></p>}
-      <InterruptedSessions sessions={openSessions} suggestedId={suggestedId} loading={loading || sessionsLoading} onResume={resumeSession} onRestart={restartSession} />
+      <InterruptedSessions sessions={openSessions} suggestedId={suggestedId} loading={loading || sessionsLoading} onResume={resumeSession} onRestart={restartSession} onDelete={deleteSession} />
       <label>과목<select value={selectedSubject} disabled={loading} onChange={(e) => { setSelectedSubject(e.target.value); setCurriculumSelection(null); }}><option value="">과목 선택</option>{SUBJECTS.map((subject) => <option key={subject}>{subject}</option>)}</select></label>
       <CurriculumSelector
         subject={selectedSubject}

@@ -45,6 +45,9 @@
 :root[data-theme="dark"] .tutor-hint small { color: #a7bad1; }
 @media (max-width: 720px) { .feedback-strip { flex-direction: column; } .message-content-wrap { max-width: 92%; } }
 .study-error { color: #be123c; margin: 4px 0; }
+.resume-session .resume-delete { margin-top: 10px; padding: 7px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: transparent; color: #be123c; font: inherit; font-size: 12px; cursor: pointer; }
+.resume-session .resume-delete:disabled { opacity: .5; cursor: wait; }
+:root[data-theme="dark"] .resume-session .resume-delete { color: #fda4af; }
 .rag-notice { padding: 12px 14px; border-radius: 10px; color: #92400e; background: #fef3c7; font-size: 14px; line-height: 1.5; }
 .resume-sessions { display: grid; gap: 8px; padding: 14px; border: 1px solid #dbe6f6; border-radius: 12px; background: #f8fbff; }
 .resume-sessions > button { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 11px 13px; color: #31549d; background: white; border: 1px solid #dbe6f6; text-align: left; }

@@ -87,6 +87,7 @@ def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
         "subject": session.room.subject if session.room else None,
         "can_resume": session.state != "finished" and bool(session.room and session.room.status == "active"),
         "can_restart": bool(session.room and session.room.status == "active"),
+        "can_delete": session.state != "finished" and not bool(session.room and session.room.status == "active"),
     }
     if include_messages:
         result["messages"] = [
@@ -251,6 +252,25 @@ def pause_session(session_id: int, user: User = Depends(get_current_user), db: S
     session.state = "paused"
     db.commit()
     return {"message": "대화와 진행 상태를 저장했습니다. 나중에 이어서 학습할 수 있어요.", **session_response(session)}
+
+
+@router.delete("/{session_id}")
+def delete_unavailable_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    session = owned_session(db, session_id, user.id)
+    if session.state == "finished" or (session.room and session.room.status == "active"):
+        raise HTTPException(status_code=409, detail="더 이상 이용할 수 없는 미완료 학습만 삭제할 수 있습니다.")
+    # Never cascade into completed records or independently saved notes.
+    if (db.query(LearningRecord.id).filter_by(session_id=session.id).first()
+            or db.query(StudyNote.id).filter_by(session_id=session.id).first()):
+        raise HTTPException(status_code=409, detail="완료 기록이나 정리노트가 있는 학습은 삭제할 수 없습니다.")
+    message_ids = db.query(Message.id).filter_by(session_id=session.id)
+    # Delete dependent rows first (also safe with MySQL foreign keys enabled).
+    db.query(RagReference).filter(RagReference.message_id.in_(message_ids)).delete(synchronize_session=False)
+    db.query(AIFeedback).filter_by(session_id=session.id).delete(synchronize_session=False)
+    db.query(Message).filter_by(session_id=session.id).delete(synchronize_session=False)
+    db.query(ChatSession).filter_by(id=session.id, user_id=user.id).delete(synchronize_session=False)
+    db.commit()
+    return {"message": "이용할 수 없는 학습의 대화와 진행 기록을 삭제했습니다.", "deleted_session_id": session_id}
 
 
 @router.post("/{session_id}/resume")

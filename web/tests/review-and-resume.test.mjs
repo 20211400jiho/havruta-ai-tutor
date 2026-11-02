@@ -61,3 +61,11 @@ test("unavailable rooms disable restart and resume without hiding history", () =
 test("empty history has no misleading progress card", () => {
   assert.equal(render(InterruptedSessions, { sessions: [] }), "");
 });
+
+test("only unavailable sessions expose explicit record deletion", () => {
+  const unavailable = render(InterruptedSessions, { sessions: [{ ...session, can_resume: false, can_restart: false, can_delete: true }] });
+  assert.ok(unavailable.includes("기록 삭제"));
+  assert.ok(!render(InterruptedSessions, { sessions: [{ ...session, can_delete: false }] }).includes("기록 삭제"));
+  const busy = render(InterruptedSessions, { sessions: [{ ...session, can_delete: true }], loading: true });
+  assert.ok(busy.includes('class="resume-delete" disabled=""'));
+});

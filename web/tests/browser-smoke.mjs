@@ -32,6 +32,8 @@ function installFixtures() {
   const fresh = { ...old, id: 11, checked_count: 0, answer_count: 0, state: "questioning", stage: "개념 설명", learning_report: report(0),
     messages: [{ id: 4, sender_type: "ai", content: "자연환경과 인간은 어떤 관계일까요?", response_meta: { stage: "개념 설명" } }] };
   let restarted = false;
+  let deletedUnavailable = false;
+  const unavailable = { ...old, id: 12, topic: "이용 종료된 학습", can_resume: false, can_restart: false, can_delete: true };
   let messageSequence = 20;
   const questions = [
     { id: 101, question: "하천 오염을 줄이기 위해 물을 어떻게 처리해야 할까요?", options: ["처리 없이 배출", "오염물질을 제거한 후 배출", "숲의 면적 측정", "홍수량 측정"] },
@@ -54,7 +56,12 @@ function installFixtures() {
     let data;
     if (path === "/auth/me") data = { id: 1, name: "테스트 학생", email: "fixture@example.com", grade: "고등학교 1학년", role: "student" };
     else if (path === "/dashboard/me") data = { summary: { completed_sessions: 0 }, recent_records: [] };
-    else if (path === "/sessions") data = { sessions: restarted ? [fresh, old] : [old] };
+    else if (path === "/sessions") data = { sessions: [...(restarted ? [fresh, old] : [old]), ...(!deletedUnavailable ? [unavailable] : [])] };
+    else if (path === "/sessions/12" && method === "DELETE") {
+      if (window.__failDelete) return new Response(JSON.stringify({ detail: "삭제 테스트 오류" }), { status: 503 });
+      deletedUnavailable = true;
+      data = { deleted_session_id: 12, message: "이용할 수 없는 학습의 대화와 진행 기록을 삭제했습니다." };
+    }
     else if (path === "/sessions/10/resume") { old.state = "questioning"; data = payload(old); }
     else if (path === "/sessions/10/pause") { old.state = "paused"; data = { ...payload(old), message: "대화와 진행 상태를 저장했습니다." }; }
     else if (path === "/sessions/10/restart") { restarted = true; old.state = "paused"; data = { ...payload(fresh), restarted_from_session_id: 10 }; }
@@ -157,6 +164,17 @@ try {
   await wait("document.querySelector('.notebook-home')");
   await click("혼자 학습하기");
   await wait("document.querySelector('.resume-session')");
+  assert.equal(await evaluate("document.querySelectorAll('.resume-delete').length"), 1);
+  await evaluate("window.confirm = () => false; document.querySelector('.resume-delete').click()");
+  assert.equal(await evaluate("window.__calls.filter(call => call.method === 'DELETE').length"), 0);
+  await evaluate("window.confirm = () => true; window.__failDelete = true; document.querySelector('.resume-delete').click()");
+  await wait("document.querySelector('.study-error')");
+  assert.equal(await evaluate("document.querySelectorAll('.resume-delete').length"), 1, "Failed deletion keeps the card");
+  await evaluate("window.__failDelete = false; localStorage.setItem('havruta_active_session', '12')");
+  await click("기록 삭제");
+  await wait("!document.querySelector('.resume-delete')");
+  assert.ok(await evaluate("!localStorage.getItem('havruta_active_session')"));
+  assert.equal(await evaluate("document.querySelectorAll('.resume-session').length"), 1, "Other learning remains");
   assert.ok(await evaluate("!document.querySelector('.study-chat-container')"), "Must not silently auto-resume");
   assert.ok(await evaluate("document.querySelector('.resume-session').textContent.includes('2/5')"));
   await evaluate("document.querySelector('.resume-history summary').click()");
