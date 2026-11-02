@@ -173,6 +173,7 @@ def create_session(
         grade=grade,
     )
     response_meta = {
+        **({"practice_mode": "english"} if room.subject == "영어" else {}),
         "ai_provider": "question_template",
         "retriever": contexts[0].metadata.get("retriever", "lexical") if contexts else "none",
         "grounded": bool(contexts),

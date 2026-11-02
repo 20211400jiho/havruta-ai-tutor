@@ -84,7 +84,7 @@ def test_uncertain_answer_keeps_previous_question_context(monkeypatch):
     assert "몰라" not in captured["query"]
     assert "방금 질문을 더 쉽게" in reply
     assert "I didn't know that" not in reply
-    assert "이해되는 단어나 조건 하나" in feedback["followup_question"]
+    assert "영어 문장에서 이해되는 단어나 짧은 구절" in feedback["followup_question"]
     assert feedback["score"] is None
     assert feedback["level"] == "힌트 단계"
     assert response_meta["stage"] == "개념 설명"

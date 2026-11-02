@@ -27,10 +27,13 @@ def needs_hint(state) -> bool:
     return state.last_intent == "hint"
 
 
-def build_hint(state, turn: ProgressiveTutorTurn | None) -> dict | None:
+def build_hint(state, turn: ProgressiveTutorTurn | None, subject: str = "일반") -> dict | None:
     if not needs_hint(state):
         return None
     fallback_keywords, fallback_text = STAGE_CUES[state.stage]
+    if subject == "영어":
+        from app.rag.english_practice import ENGLISH_HINT_CUES
+        fallback_keywords, fallback_text = ENGLISH_HINT_CUES
     keywords = turn.hint_keywords if turn and turn.hint_keywords else fallback_keywords
     text = turn.hint_text.strip() if turn and turn.hint_text.strip() else fallback_text
     state.scaffold_count = min(state.scaffold_count + 1, 10000)

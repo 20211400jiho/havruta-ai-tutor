@@ -8,6 +8,7 @@ from difflib import SequenceMatcher
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from app.rag.english_practice import is_theory_question, followup_options, is_question_form_answer
 
 STAGES = ("개념 설명", "근거 확인", "생각 수정", "적용", "최종 정리")
 STAGE_GOALS = {
@@ -249,7 +250,7 @@ def question_repeats(question: str, previous: list[str]) -> bool:
                if (old := re.sub(r"[^가-힣a-z0-9]", "", text.lower())))
 
 
-def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str) -> str:
+def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str, subject: str = "일반") -> str:
     """Enforce question purpose without inventing mastery or domain facts."""
     completed = state.stage == STAGES[-1] and any(item.get("stage") == STAGES[-1] for item in state.evidence)
     expected = "review" if completed else QUESTION_GOALS[state.stage]
@@ -261,11 +262,13 @@ def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str
         allowed.add("reason")
         if turn.next_question_goal == "scaffold":
             anchor = turn.evidence_quote.strip()[:180]
-            turn.next_question = f"‘{anchor}’라는 결과를 설명하는 개념이나 이유는 무엇일까요?"
+            turn.next_question = ("방금 답의 근거가 되는 영어 구절과 그 뜻을 설명해볼까요?" if subject == "영어"
+                                  else f"‘{anchor}’라는 결과를 설명하는 개념이나 이유는 무엇일까요?")
             turn.next_question_goal = "reason"
             state.question_guard = "맞힌 답변을 기초 문제로 되돌리지 않고 이유로 연결"
     repeated = question_repeats(turn.next_question, state.recent_questions + state.answered_questions)
-    if turn.next_question_goal in allowed and not repeated:
+    theory_question = subject == "영어" and is_theory_question(turn.next_question)
+    if turn.next_question_goal in allowed and not repeated and not theory_question:
         question, goal = turn.next_question, turn.next_question_goal
     else:
         state.question_guard = "반복 질문 교체" if repeated else "단계에 맞는 질문으로 교체"
@@ -285,6 +288,8 @@ def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str
             "review": ["이번 대화는 여기서 마무리해도 좋아요. 더 알아보고 싶은 점이나 복습하고 싶은 부분이 있나요?",
                        "학습 종료로 기록을 남기거나 다른 단원으로 넘어갈까요?"],
         }
+        if subject == "영어":
+            options = followup_options(topic)
         question = next((q for q in options[expected] if not question_repeats(q, state.recent_questions)),
                         "지금까지 설명 중 어느 부분에서 막혔는지 짚어주면 그 부분부터 함께 풀어볼까요?")
         goal = expected
@@ -300,11 +305,19 @@ def learning_report(history: list[dict], topic: str) -> dict:
     """Observable learning evidence, not a validated learning-effectiveness score."""
     state = restore_state(history)
     evidence = {item.get("stage"): item for item in state.evidence if item.get("stage") in STAGES}
-    answers = [str(item.get("content") or "").strip() for item in history
-               if item.get("sender_type") == "user" and str(item.get("content") or "").strip()
-               and not (isinstance(item.get("response_meta"), dict)
-                        and item["response_meta"].get("help_action") in {"hint", "example", "simplify"})
-               and classify_intent(str(item.get("content") or "")) == "answer"]
+    answers = []
+    previous_question, english_mode = "", False
+    for item in history:
+        content = str(item.get("content") or "").strip()
+        meta = item.get("response_meta") or {}
+        if item.get("sender_type") == "ai":
+            previous_question = extract_question(content)
+            english_mode = isinstance(meta, dict) and meta.get("practice_mode") == "english"
+        elif item.get("sender_type") == "user" and content:
+            if isinstance(meta, dict) and meta.get("help_action") in {"hint", "example", "simplify"}:
+                continue
+            if classify_intent(content) == "answer" or (english_mode and is_question_form_answer(content, previous_question)):
+                answers.append(content)
     objectives = [{
         "stage": stage, "description": description,
         "status": "ai_checked" if stage in evidence else "not_checked",

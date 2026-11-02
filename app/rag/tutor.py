@@ -13,6 +13,7 @@ from app.rag.dialogue import (
     restore_state, prepare_state, apply_assessment, select_followup,
 )
 from app.rag.hints import build_hint, needs_hint, tutor_response_schema
+from app.rag.english_practice import ENGLISH_INSTRUCTIONS, initial_activity, is_theory_question, is_question_form_answer
 
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ def _openai_generate(
                 "검색 자료가 없으면 검증된 기초 교과 지식으로 설명하고, 확실하지 않은 내용은 추측하지 마세요. "
                 "수식은 화면에서 깨지지 않는 일반 텍스트로 쓰세요."
                 "도덕·사회 쟁점은 특정 의견에 동의하는지로 평가하지 말고 근거·반례·타인 관점 고려를 확인하세요."
+                + (ENGLISH_INSTRUCTIONS if subject == "영어" else "")
             ),
             input=input_payload,
             max_output_tokens=max(settings.openai_max_output_tokens, 1200) if response_schema else settings.openai_max_output_tokens,
@@ -144,6 +146,8 @@ def initial_question(
         school_level=school_level,
         grade=grade,
     )
+    if subject == "영어":
+        return f"오늘은 짧은 영어 문장으로 ‘{topic}’을 연습해볼게요.\n\n{initial_activity(topic, school_level)}", contexts
     if contexts and contexts[0].metadata.get("question"):
         question = contexts[0].metadata["question"]
         return f"오늘은 ‘{topic}’을 함께 탐구해볼게요. 먼저 생각을 말해보세요.\n\n{question}", contexts
@@ -165,6 +169,14 @@ def tutor_reply(
     # 이전 메시지에 저장된 학습 단계를 복원하고, 답변/질문/도움 요청을 구분한다.
     dialogue = prepare_state(history, topic, answer, help_action=help_action)
     previous_question = dialogue.last_question
+    if subject == "영어" and dialogue.last_intent == "question" and is_question_form_answer(answer, previous_question):
+        dialogue.last_intent = "answer"
+    recover_english = subject == "영어" and is_theory_question(previous_question)
+    if recover_english:
+        # Existing theory-only sessions keep their history/checks, but the next
+        # activity must not treat a definition of 'comprehension' as English skill.
+        dialogue.focus_question = initial_activity(topic, school_level)
+        dialogue.learning_goal = "영어 문장의 뜻을 이해하고 근거를 찾아 새로운 상황에서 표현하기"
     uncertain = dialogue.last_intent in {"hint", "example", "simplify"}
     stage = dialogue.stage
     # 짧은 "몰라"·"응" 때문에 검색 주제가 바뀌지 않도록 이전 질문과 목표를 포함한다.
@@ -210,6 +222,9 @@ def tutor_reply(
     followup = stage_followup(stage, topic, uncertain)
     if not uncertain:
         followup = f"‘{dialogue.focus_question[:850].rstrip('?？')}’에 대해 예시나 이유 하나를 들어 설명해볼까요?"
+    if subject == "영어":
+        followup = ("지금 연습하는 영어 문장에서 이해되는 단어나 짧은 구절 하나를 먼저 골라볼까요?"
+                    if uncertain else "방금 읽은 영어 문장의 뜻을 자기 말로 설명해볼까요?")
     feedback["followup_question"] = followup
     reference = context.metadata.get("description", "") if context else ""
     context_text = "\n\n".join(
@@ -278,6 +293,8 @@ def tutor_reply(
         "최종 정리까지 확인했다면 단원 전체를 마쳤다고 선언하지 말고 복습할 부분을 물어보세요.\n\n"
         f"{context_text or '[검색 자료 없음]'}"
     )
+    if subject == "영어":
+        prompt += ENGLISH_INSTRUCTIONS
     if dialogue.last_intent == "example":
         prompt += (
             "\n\n[이번 응답은 예시 설명 모드]\n"
@@ -308,7 +325,16 @@ def tutor_reply(
     # Callers may supply history with or without the current user message.
     prior_history = history[:-1] if history and history[-1].get("sender_type") == "user" and history[-1].get("content") == answer else history
     generation_started = time.monotonic()
-    generated, ai_provider = generate_with_provider(prompt, subject, prior_history, tutor_response_schema())
+    if recover_english:
+        generated = ProgressiveTutorTurn(
+            explanation="용어 설명에서 실제 영어 연습으로 바꿔볼게요. 지금까지의 대화는 남겨두고 다음 문장부터 함께 읽어봐요.",
+            next_question=initial_activity(topic, school_level), assessment="unassessed", evidence_quote="",
+            reasoning="영어 활동을 시작하는 안내이며 학생의 영어 이해를 평가하지 않았습니다.",
+            misconception="", source_ids=[], next_question_goal="scaffold",
+        ).model_dump_json()
+        ai_provider = "practice_template"
+    else:
+        generated, ai_provider = generate_with_provider(prompt, subject, prior_history, tutor_response_schema())
     baseline = dialogue.model_copy(deep=True)
     repair_issue = ""
     # Validate on a copy: a retry must never advance two stages for one answer.
@@ -374,7 +400,7 @@ def tutor_reply(
                         "조금 더 쉽게 나누어 생각해볼까요? 아래 단서를 연결해보세요."
                     )
                     turn.next_question_goal = "scaffold"
-                turn.next_question = select_followup(dialogue, turn, topic)
+                turn.next_question = select_followup(dialogue, turn, topic, subject)
                 generated = f"{turn.explanation.strip()}\n\n{turn.next_question.strip()}"
             feedback.update({
                 "score": None, "level": {"understood": "이해 확인", "partial": "보완 필요",
@@ -407,12 +433,12 @@ def tutor_reply(
             dialogue.last_question = followup
             dialogue.assessment_message = "AI 도움 응답을 생성하지 못해 질문과 학습목표를 그대로 유지했어요."
         else:
-            followup = select_followup(dialogue, fallback_turn, topic)
+            followup = select_followup(dialogue, fallback_turn, topic, subject)
         feedback["followup_question"] = followup
         dialogue.transition_reason = "AI 이해 판단을 확인할 수 없어 단계와 핵심 질문을 유지합니다."
         # No keyword/length grade is issued during provider failure.
         feedback["assessment"] = "unassessed"
-    hint = build_hint(dialogue, turn)
+    hint = build_hint(dialogue, turn, subject)
     if hint:
         feedback["level"] = "힌트 단계"
         feedback["strengths"] = "정답을 바로 제시하지 않고, 생각할 단서로 현재 질문을 이어갑니다."
@@ -430,6 +456,7 @@ def tutor_reply(
             "improvements": "설명에서 이해한 부분과 아직 헷갈리는 부분을 이야기해보세요.", "rubric": {},
         })
     response_meta = {
+        **({"practice_mode": "english"} if subject == "영어" else {}),
         "ai_provider": ai_provider,
         "retriever": contexts[0].metadata.get("retriever", "lexical") if contexts else "none",
         "grounded": bool(contexts),
@@ -456,7 +483,7 @@ def tutor_reply(
         # The local fallback must not disclose a source's full answer either.
         reply = f"괜찮아요. 방금 질문을 더 쉽게 나눠볼게요.\n\n{followup}"
         return reply, feedback, contexts, response_meta
-    reference_text = f"\n\n참고 개념: {reference}" if reference else ""
+    reference_text = f"\n\n참고 개념: {reference}" if reference and subject != "영어" else ""
     if uncertain:
         reply = (
             "괜찮아요. 방금 질문을 더 쉽게 나눠볼게요."
