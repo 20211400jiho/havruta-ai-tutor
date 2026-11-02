@@ -168,6 +168,15 @@ try {
   assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('2개 AI 확인')"));
   await wait("document.querySelectorAll('.message-row.ai .katex').length === 7");
   assert.equal(await evaluate("document.querySelectorAll('.message-row.user .katex').length"), 1);
+  assert.ok(await evaluate(`['ai', 'user'].every(role => {
+    const bubble = document.querySelector('.message-row.' + role + ' .bubble');
+    const style = getComputedStyle(bubble);
+    const text = getComputedStyle(bubble.querySelector('.math-text'));
+    return style.paddingTop === '12px' && style.paddingBottom === '12px'
+      && style.paddingLeft === '16px' && style.paddingRight === '16px'
+      && Math.abs(parseFloat(style.lineHeight) / parseFloat(style.fontSize) - 1.5) < .01
+      && text.lineHeight === style.lineHeight;
+  })`), "Both chat bubbles have comfortable padding and normal inherited line spacing");
   assert.ok(await evaluate("!window.__unsafe && !document.querySelector('.bubble script')"));
   await evaluate("document.querySelector('.learning-report-summary').click()");
   assert.ok(await evaluate("Boolean(document.querySelector('.learning-report .katex'))"));

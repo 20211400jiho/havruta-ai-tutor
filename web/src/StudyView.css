@@ -26,7 +26,7 @@
 .message-content-wrap { max-width: min(760px, 82%); }
 .message-content-wrap .bubble { max-width: none; }
 .message-content-wrap { min-width: 0; }
-.bubble .math-text { line-height: 1.75; }
+.bubble .math-text { line-height: inherit; }
 .evidence-panel { margin-top: 8px; border: 1px solid #dbe6f6; border-radius: 10px; padding: 8px 10px; color: #475569; background: #fff; font-size: 12px; }
 .evidence-panel summary { cursor: pointer; font-weight: 700; color: #31549d; }
 .evidence-list { display: grid; gap: 8px; margin-top: 9px; }

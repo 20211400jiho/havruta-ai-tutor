@@ -52,8 +52,8 @@
 .app-container .message-author { display: block; font-size: 11px; font-weight: 650; color: var(--text-muted); margin: 0 0 8px; }
 .app-container .message-content-wrap { max-width: 88%; min-width: 0; }
 .app-container .message-row.user .message-author { text-align: right; }
-.app-container .study-chat-container .bubble { font-size: 15px; line-height: 1.85; border-radius: 8px; }
-.app-container .study-chat-container .ai .bubble { padding: 0; background: transparent; color: var(--text-primary); }
+.app-container .study-chat-container .bubble { padding: 12px 16px; font-size: 15px; line-height: 1.5; border-radius: 8px; }
+.app-container .study-chat-container .ai .bubble { background: transparent; color: var(--text-primary); }
 .app-container .study-chat-container .user .bubble { color: var(--text-primary); background: var(--surface-muted); text-align: left; }
 .app-container .evidence-panel { border: 0; border-left: 2px solid var(--border-color); border-radius: 0; background: transparent; padding: 6px 12px; }
 .app-container .evidence-panel summary { font-size: 12px; font-weight: 500; color: var(--notebook-accent); }
