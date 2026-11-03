@@ -23,7 +23,7 @@
 .quiz-result strong { font-size: 28px; color: #31549d; }
 .quiz-question-block .quiz-option.selected { border-color: #315bb5; background: #edf3ff; }
 .app-container .quiz-question-block .quiz-option:disabled { opacity: 1; cursor: default; -webkit-text-fill-color: currentColor; }
-.quiz-option > span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }
+.quiz-option > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .quiz-option .option-number { flex-shrink: 0; }
 .quiz-option-label { margin-left: auto; font-size: 12px; white-space: nowrap; }
 .quiz-review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 14px 0; border-bottom: 1px solid var(--border-color); }

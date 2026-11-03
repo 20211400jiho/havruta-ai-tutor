@@ -35,11 +35,12 @@ function makeSelection(catalog, choices = {}, preferredGrade = "") {
 export default function CurriculumSelector({
   subject,
   preferredGrade = "",
+  preferredUnitCode = "",
   onSelectionChange,
   disabled = false,
   compact = false,
 }) {
-  const requestKey = `${subject}\u0000${preferredGrade}`;
+  const requestKey = `${subject}\u0000${preferredGrade}\u0000${preferredUnitCode}`;
   const [state, setState] = useState({ key: "", catalog: null, selection: null, error: "" });
   const changeHandlerRef = useRef(onSelectionChange);
 
@@ -56,7 +57,7 @@ export default function CurriculumSelector({
     api(`/rag/catalog?subject=${encodeURIComponent(subject)}`)
       .then((result) => {
         if (cancelled) return;
-        const nextSelection = makeSelection(result, {}, preferredGrade);
+        const nextSelection = makeSelection(result, { unitCode: preferredUnitCode }, preferredGrade);
         setState({ key: requestKey, catalog: result, selection: nextSelection, error: "" });
         changeHandlerRef.current?.(nextSelection);
       })
@@ -66,7 +67,7 @@ export default function CurriculumSelector({
         changeHandlerRef.current?.(null);
       });
     return () => { cancelled = true; };
-  }, [subject, preferredGrade, requestKey]);
+  }, [subject, preferredGrade, preferredUnitCode, requestKey]);
 
   const isCurrent = state.key === requestKey;
   const catalog = isCurrent ? state.catalog : null;

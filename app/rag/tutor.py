@@ -13,6 +13,7 @@ from app.rag.dialogue import (
     restore_state, prepare_state, apply_assessment, select_followup,
 )
 from app.rag.hints import build_hint, needs_hint, tutor_response_schema
+from app.rag.interaction_policy import INTERACTION_POLICY
 from app.rag.english_practice import ENGLISH_INSTRUCTIONS, initial_activity, is_theory_question, is_question_form_answer
 
 
@@ -66,6 +67,7 @@ def _openai_generate(
                 "수식은 화면에서 깨지지 않는 일반 텍스트로 쓰세요."
                 "도덕·사회 쟁점은 특정 의견에 동의하는지로 평가하지 말고 근거·반례·타인 관점 고려를 확인하세요."
                 + (ENGLISH_INSTRUCTIONS if subject == "영어" else "")
+                + INTERACTION_POLICY
             ),
             input=input_payload,
             max_output_tokens=max(settings.openai_max_output_tokens, 1200) if response_schema else settings.openai_max_output_tokens,
@@ -237,7 +239,7 @@ def tutor_reply(
         f"이번 대화의 학습목표(질문): {dialogue.learning_goal}\n"
         f"현재 하브루타 단계: {stage}\n"
         f"단계 순서: {' → '.join(STAGES)}\n"
-        "단계별 확인 기준: 개념 설명=정의/구분, 근거 확인=이유 설명, 생각 수정=오개념 수정 또는 반례 검토, "
+        "단계별 확인 기준: 개념 설명=현재 질문의 뜻·계산·표현·해석 수행, 근거 확인=이유 설명, 생각 수정=오개념 수정 또는 반례 검토, "
         "적용=새 사례 해결, 최종 정리=자기 말로 요약.\n"
         f"현재 확인 중인 개념 질문(반복 출제 지시가 아님): {dialogue.focus_question}\n"
         f"직전 AI 질문: {previous_question or '[없음]'}\n"
@@ -322,6 +324,12 @@ def tutor_reply(
             "explanation에 쉬운 설명을 쓰고 hint_keywords=[], hint_text=''로 쓰세요. "
             "마지막에는 설명에서 아직 헷갈리는 부분이나 현재 개념의 연결을 묻는 질문 하나만 next_question에 넣고 next_question_goal='scaffold'로 쓰세요."
         )
+    remaining_stages = [name for name in STAGES if name not in {item.get("stage") for item in dialogue.evidence}]
+    prompt += (INTERACTION_POLICY + f"\n남은 학습목표: {', '.join(remaining_stages) or '없음'}. "
+               "확인한 항목을 다시 출제하거나 횟수만으로 체크하지 말고, 남은 목표에 맞는 활동으로 안내하세요. "
+               "생각 수정은 일부러 틀리게 만들지 말고 조건·표현이 달라질 때의 비교로도 확인할 수 있습니다. "
+               "마지막 정리만 남았으면 마지막 활동임을 짧게 예고하고 자기 말로 정리하게 하세요. "
+               "모든 목표가 확인되면 새 문제 대신 오늘 활동의 마무리를 안내하세요.")
     # Callers may supply history with or without the current user message.
     prior_history = history[:-1] if history and history[-1].get("sender_type") == "user" and history[-1].get("content") == answer else history
     generation_started = time.monotonic()
@@ -347,6 +355,10 @@ def tutor_reply(
             trial = baseline.model_copy(deep=True)
             apply_assessment(trial, candidate, answer, {item.source_id for item in contexts})
             repair_issue = trial.assessment_issue if trial.assessment_issue in {"source_validation", "quote_validation"} else ""
+            if (not repair_issue and contexts and baseline.last_intent == "answer"
+                    and candidate.answer_status == "correct" and candidate.assessment == "partial"
+                    and (baseline.question_goal != "scaffold" or not candidate.missing_requirement.strip())):
+                repair_issue = "goal_alignment"
         except (ValidationError, ValueError):
             repair_issue = "invalid_response"
         # 형식·인용·출처 검증 오류만 최대 1회 재요청하며, 남은 시간도 제한한다.
@@ -361,6 +373,8 @@ def tutor_reply(
             "source_ids에는 위 검색 자료의 실제 source_id만 쓰세요. "
             "출처나 이해 증거가 없으면 만들어내지 말고 unassessed로 반환하세요. "
             "explanation은 assessment와 일치시켜주세요. 전체 JSON을 반환하세요."
+            "\n정답인데 partial인 경우 직전 질문이 요구한 항목 중 무엇이 빠졌는지 missing_requirement에 명시하세요. "
+            "이미 요구를 충족했다면 새 필수 조건을 추가하지 말고 실제 인용·출처를 확인한 뒤 understood로 판단하세요."
         )
         repaired, repaired_provider = generate_with_provider(
             repair_prompt, subject, prior_history, tutor_response_schema(), remaining,
@@ -400,8 +414,15 @@ def tutor_reply(
                         "조금 더 쉽게 나누어 생각해볼까요? 아래 단서를 연결해보세요."
                     )
                     turn.next_question_goal = "scaffold"
-                turn.next_question = select_followup(dialogue, turn, topic, subject)
-                generated = f"{turn.explanation.strip()}\n\n{turn.next_question.strip()}"
+                turn.next_question = select_followup(dialogue, turn, topic, subject, baseline.last_question)
+                completed = {item.get("stage") for item in dialogue.evidence} == set(STAGES)
+                if completed:
+                    turn.next_question = ""
+                    dialogue.last_question = ""
+                    dialogue.question_goal = "review"
+                    generated = turn.explanation.strip() + "\n\n오늘 계획한 5개 학습목표를 모두 확인했어요. 이제 학습을 마무리하고 기록을 남길게요."
+                else:
+                    generated = f"{turn.explanation.strip()}\n\n{turn.next_question.strip()}"
             feedback.update({
                 "score": None, "level": {"understood": "이해 확인", "partial": "보완 필요",
                     "misconception": "개념 교정", "unassessed": "확인 중"}[dialogue.assessment],
@@ -413,7 +434,8 @@ def tutor_reply(
             if dialogue.answer_status == "correct" and dialogue.assessment != "understood":
                 feedback.update({
                     "level": "맞힌 내용에서 이어가기",
-                    "strengths": "방금 답한 내용은 확인했어요. 같은 개념에서 이유나 연결을 더 살펴봅니다.",
+                    "strengths": ("방금 답은 맞아요. 추가 확인: " + turn.missing_requirement if turn.missing_requirement
+                                  else "방금 답한 내용은 확인했어요. 같은 개념에서 이유나 연결을 더 살펴봅니다."),
                 })
         except (ValidationError, ValueError):
             logger.warning("Invalid structured tutor response; retaining dialogue state")
@@ -433,7 +455,7 @@ def tutor_reply(
             dialogue.last_question = followup
             dialogue.assessment_message = "AI 도움 응답을 생성하지 못해 질문과 학습목표를 그대로 유지했어요."
         else:
-            followup = select_followup(dialogue, fallback_turn, topic, subject)
+            followup = select_followup(dialogue, fallback_turn, topic, subject, baseline.last_question)
         feedback["followup_question"] = followup
         dialogue.transition_reason = "AI 이해 판단을 확인할 수 없어 단계와 핵심 질문을 유지합니다."
         # No keyword/length grade is issued during provider failure.

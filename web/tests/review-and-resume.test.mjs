@@ -7,10 +7,12 @@ import { createServer } from "vite";
 let vite;
 let QuizReview;
 let InterruptedSessions;
+let StudyCompletion;
 before(async () => {
   vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom" });
   QuizReview = (await vite.ssrLoadModule("/src/QuizReview.jsx")).default;
   InterruptedSessions = (await vite.ssrLoadModule("/src/InterruptedSessions.jsx")).default;
+  StudyCompletion = (await vite.ssrLoadModule("/src/StudyCompletion.jsx")).default;
 });
 after(async () => { await vite?.close(); });
 
@@ -68,4 +70,21 @@ test("only unavailable sessions expose explicit record deletion", () => {
   assert.ok(!render(InterruptedSessions, { sessions: [{ ...session, can_delete: false }] }).includes("기록 삭제"));
   const busy = render(InterruptedSessions, { sessions: [{ ...session, can_delete: true }], loading: true });
   assert.ok(busy.includes('class="resume-delete" disabled=""'));
+});
+
+test("quiz review and interrupted question render math instead of raw LaTeX", () => {
+  const equation = String.raw`$\frac{y}{x}=a$`;
+  const html = render(QuizReview, { item: { ...wrong, selected_answer: equation, correct_answer: equation, explanation: equation, wrong_reason: equation, review_tip: equation } });
+  assert.equal((html.match(/class="katex"/g) || []).length, 5);
+  const card = render(InterruptedSessions, { sessions: [{ ...session, last_question: equation }] });
+  assert.equal((card.match(/class="katex"/g) || []).length, 1);
+});
+
+test("ending distinguishes 5/5 completion from early finish and exposes next choices", () => {
+  const objectives=["개념 설명","근거 확인","생각 수정","적용","최종 정리"].map(stage=>({stage,status:"ai_checked",evidence_quote:"$y=ax$"}));
+  const html=render(StudyCompletion,{report:{objectives},completion:{note_id:1}});
+  for(const text of ["5/5","자동 저장","정리노트 보기","복습 퀴즈 풀기","다른 단원 시작"]) assert.ok(html.includes(text));
+  assert.equal((html.match(/class="katex"/g)||[]).length,2);
+  const partial=render(StudyCompletion,{report:{objectives:objectives.slice(0,2)},completion:{note_id:1}});
+  assert.ok(partial.includes("2/5") && !partial.includes("목표를 모두 확인"));
 });

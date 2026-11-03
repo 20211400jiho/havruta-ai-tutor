@@ -127,13 +127,40 @@ def session_response(session: ChatSession) -> dict:
     }}
 
 
-def owned_session(db: Session, session_id: int, user_id: int) -> ChatSession:
-    session = db.get(ChatSession, session_id)
+def owned_session(db: Session, session_id: int, user_id: int, lock: bool = False) -> ChatSession:
+    session = (db.query(ChatSession).filter_by(id=session_id).populate_existing().with_for_update().first()
+               if lock else db.get(ChatSession, session_id))
     if session is None:
         raise HTTPException(status_code=404, detail="학습 세션을 찾을 수 없습니다.")
     if session.user_id != user_id:
         raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
     return session
+
+
+def complete_learning(db: Session, session: ChatSession, report: dict) -> dict:
+    """Called under the session row lock; caller commits message+record+note once."""
+    record = session.learning_record
+    new_record = record is None
+    if record is None:
+        total_messages = db.query(func.count(Message.id)).filter(Message.session_id == session.id).scalar() or 0
+        average = db.query(func.avg(AIFeedback.score)).filter(AIFeedback.session_id == session.id).scalar()
+        session.ended_at = datetime.now(UTC).replace(tzinfo=None)
+        record = LearningRecord(user_id=session.user_id, room_id=session.room_id, session_id=session.id,
+                                total_messages=total_messages, ai_score_avg=round(float(average)) if average is not None else None,
+                                completed_at=session.ended_at)
+        session.learning_record = record
+        db.add(record)
+    session.state = "finished"
+    # A user's explicitly deleted note must not reappear on a finish retry.
+    note = (create_note_for_session(db, session) if new_record else
+            db.query(StudyNote).filter_by(session_id=session.id, user_id=session.user_id).first())
+    db.flush()
+    return {
+        "record_id": record.id, "note_id": note.id if note else None, "goals_completed": report["completion_ready"],
+        "learning_report": report,
+        "scope": {"subject": session.room.subject if session.room else "", "schoolLevel": session.school_level,
+                  "grade": session.grade, "unitCode": session.unit_code},
+    }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -246,7 +273,7 @@ def get_session(
 
 @router.post("/{session_id}/pause")
 def pause_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    session = owned_session(db, session_id, user.id)
+    session = owned_session(db, session_id, user.id, lock=True)
     if session.state == "finished":
         raise HTTPException(status_code=409, detail="이미 마친 학습입니다. 처음부터 다시 학습할 수 있습니다.")
     # Pausing does not finish learning or create a completed record/note.
@@ -257,7 +284,7 @@ def pause_session(session_id: int, user: User = Depends(get_current_user), db: S
 
 @router.delete("/{session_id}")
 def delete_unavailable_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    session = owned_session(db, session_id, user.id)
+    session = owned_session(db, session_id, user.id, lock=True)
     if session.state == "finished" or (session.room and session.room.status == "active"):
         raise HTTPException(status_code=409, detail="더 이상 이용할 수 없는 미완료 학습만 삭제할 수 있습니다.")
     # Never cascade into completed records or independently saved notes.
@@ -276,9 +303,14 @@ def delete_unavailable_session(session_id: int, user: User = Depends(get_current
 
 @router.post("/{session_id}/resume")
 def resume_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    session = owned_session(db, session_id, user.id)
+    session = owned_session(db, session_id, user.id, lock=True)
     if session.state == "finished":
         raise HTTPException(status_code=409, detail="이미 마친 학습입니다. 처음부터 다시 학습해주세요.")
+    report = session_dict(session, True)["learning_report"]
+    if report["completion_ready"]:
+        completion = complete_learning(db, session, report)
+        db.commit()
+        return {**session_response(session), "completion": completion}
     room = ensure_room_access(db, session.room_id, user.id)
     if room.status != "active":
         raise HTTPException(status_code=409, detail="삭제된 학습방의 기록은 볼 수 있지만 이어서 진행할 수 없습니다.")
@@ -289,7 +321,7 @@ def resume_session(session_id: int, user: User = Depends(get_current_user), db: 
 
 @router.post("/{session_id}/restart", status_code=status.HTTP_201_CREATED)
 def restart_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    previous = owned_session(db, session_id, user.id)
+    previous = owned_session(db, session_id, user.id, lock=True)
     # Reuse scope validation and initial-question generation. Keep the original
     # transcript, evidence and completed record; only the new session starts at 0/5.
     if previous.state != "finished":
@@ -316,6 +348,10 @@ def send_message(
     if session.state == "finished":
         raise HTTPException(status_code=409, detail="이미 종료된 세션입니다.")
     enforce_ai_quota(db, user.id, "tutor_message")
+    # Quota accounting commits separately; reacquire after it, not before it.
+    session = owned_session(db, session_id, user.id, lock=True)
+    if session.state == "finished":
+        raise HTTPException(status_code=409, detail="이미 종료된 세션입니다. 정리노트에서 기록을 확인해주세요.")
     user_message = Message(
         session_id=session.id, sender_type="user", content=payload.content.strip(),
         response_meta_json={"help_action": payload.help_action} if payload.help_action else None,
@@ -363,15 +399,17 @@ def send_message(
         if context.chunk_id:
             db.add(RagReference(message_id=ai_message.id, chunk_id=context.chunk_id, relevance_score=context.score))
     session.state = "questioning"
+    report = learning_report([message_dict(message) for message in history] + [message_dict(ai_message)], session.topic or "학습")
+    completion = complete_learning(db, session, report) if report["completion_ready"] else None
     db.commit()
     db.refresh(ai_message)
     return {
         "message": message_dict(ai_message),
         "feedback": feedback_data,
         "response_meta": response_meta,
-        "learning_report": learning_report(
-            [message_dict(message) for message in history] + [message_dict(ai_message)], session.topic or "학습"
-        ),
+        "learning_report": report,
+        "completion": completion,
+        "session_state": session.state,
     }
 
 
@@ -381,31 +419,8 @@ def finish_session(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    session = db.get(ChatSession, session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="학습 세션을 찾을 수 없습니다.")
-    if session.user_id != user.id:
-        raise HTTPException(status_code=403, detail="세션 접근 권한이 없습니다.")
-    if session.learning_record:
-        existing_note = db.query(StudyNote).filter_by(session_id=session.id, user_id=user.id).first()
-        return {"message": "이미 종료된 세션입니다.", "record_id": session.learning_record.id,
-                "note_id": existing_note.id if existing_note else None,
-                "learning_report": session_dict(session, True)["learning_report"]}
-    total_messages = db.query(func.count(Message.id)).filter(Message.session_id == session.id).scalar() or 0
-    average = db.query(func.avg(AIFeedback.score)).filter(AIFeedback.session_id == session.id).scalar()
-    session.state = "finished"
-    session.ended_at = datetime.now(UTC).replace(tzinfo=None)
-    record = LearningRecord(
-        user_id=user.id,
-        room_id=session.room_id,
-        session_id=session.id,
-        total_messages=total_messages,
-        ai_score_avg=round(float(average)) if average is not None else None,
-        completed_at=session.ended_at,
-    )
-    db.add(record)
-    note = create_note_for_session(db, session)
+    session = owned_session(db, session_id, user.id, lock=True)
+    report = session_dict(session, True)["learning_report"]
+    completion = complete_learning(db, session, report)
     db.commit()
-    db.refresh(record)
-    return {"message": "학습 세션이 완료되었습니다.", "record_id": record.id, "note_id": note.id,
-            "learning_report": session_dict(session, True)["learning_report"]}
+    return {"message": "학습을 기록했습니다.", **completion, "completion": completion}

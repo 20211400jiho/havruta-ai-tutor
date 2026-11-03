@@ -22,7 +22,7 @@ def history_for(state):
 
 
 @pytest.mark.parametrize("answer,intent", [
-    ("몰라", "hint"), ("어떤 부분부터 생각해야 할지 아직 잘 모르겠고 설명해줘", "hint"),
+    ("몰라", "hint"), ("어떤 부분부터 생각해야 할지 아직 잘 모르겠고 설명해줘", "simplify"),
     ("네", "acknowledgement"), ("알겠어요", "acknowledgement"), ("왜 그런 거야?", "question"),
 ])
 def test_non_answers_cannot_advance_even_if_model_claims_understanding(answer, intent):

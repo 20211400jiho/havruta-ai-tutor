@@ -16,7 +16,8 @@ function installFixtures() {
   const question = "개발이 필요한 경우 어떤 조건을 함께 고려해야 할까요?";
   const report = (count) => ({
     learning_goal: "인간과 자연환경은 어떤 관계일까요? 수식 확인: $y=ax$", checked_count: count, total_count: 5,
-    stage: stages[count], objectives: stages.map((stage, index) => ({ stage, description: `${stage}을 자신의 말로 설명하기`, status: index < count ? "ai_checked" : "not_checked" })),
+    completion_ready: count === 5, progress_message: count === 4 ? "마지막 정리만 남았어요." : `${count}/5 확인`,
+    stage: stages[Math.min(count, 4)], objectives: stages.map((stage, index) => ({ stage, description: `${stage}을 자신의 말로 설명하기`, status: index < count ? "ai_checked" : "not_checked", evidence_quote: index < count ? `${stage}을 내 말로 설명했습니다.` : null })),
   });
   const old = {
     id: 10, room_id: 1, user_id: 1, subject: "사회", topic: "자연환경과 인간", school_level: "고등학교", grade: "1학년", unit_code: "10통사1-03",
@@ -26,7 +27,7 @@ function installFixtures() {
       { id: 1, sender_type: "ai", content: String.raw`수식 표시 테스트: $y=ax$, $a\neq0$, $y=-3x$, $\frac{y}{x}=a$, $x^2+2x+1$, $2x-3=7$. 블록: \[x_1+x_2+x_3+x_4+x_5+x_6+x_7+x_8+x_9+x_{10}+x_{11}+x_{12}=100\]` },
       { id: 2, sender_type: "user", content: String.raw`학생 답변: \(y=-3x\) 한글 English
 두 번째 줄. <script>window.__unsafe=true</script>` },
-      { id: 3, sender_type: "ai", content: question, response_meta: { stage: "생각 수정", dialogue_state: { stage: "생각 수정" } } },
+      { id: 3, sender_type: "ai", content: question, response_meta: { stage: "생각 수정", dialogue_state: { stage: "생각 수정" }, sources: [{ source_id: "fixture-math", subject: "수학", excerpt: String.raw`수식 표시 확인: $y=ax$` }] } },
     ], learning_report: report(2),
   };
   const fresh = { ...old, id: 11, checked_count: 0, answer_count: 0, state: "questioning", stage: "개념 설명", learning_report: report(0),
@@ -36,7 +37,7 @@ function installFixtures() {
   const unavailable = { ...old, id: 12, topic: "이용 종료된 학습", can_resume: false, can_restart: false, can_delete: true };
   let messageSequence = 20;
   const questions = [
-    { id: 101, question: "하천 오염을 줄이기 위해 물을 어떻게 처리해야 할까요?", options: ["처리 없이 배출", "오염물질을 제거한 후 배출", "숲의 면적 측정", "홍수량 측정"] },
+    { id: 101, question: String.raw`하천 오염을 줄이기 위해 물을 어떻게 처리해야 할까요? (수식 표시 확인: $\frac{y}{x}=a$)`, options: ["처리 없이 배출 (표시 확인: $x^2$)", "오염물질을 제거한 후 배출", "숲의 면적 측정", "홍수량 측정"] },
     { id: 102, question: "개발 사업을 판단할 때 무엇을 함께 고려해야 하나요?", options: ["일자리 수만 고려", "경제적 이익과 환경·주민의 영향", "편리함만 고려", "홍보 자료만 참고"] },
   ];
   let result = null;
@@ -62,10 +63,23 @@ function installFixtures() {
       deletedUnavailable = true;
       data = { deleted_session_id: 12, message: "이용할 수 없는 학습의 대화와 진행 기록을 삭제했습니다." };
     }
-    else if (path === "/sessions/10/resume") { old.state = "questioning"; data = payload(old); }
+    else if (path === "/sessions/10/resume") {
+      old.state = window.__completeOnResume ? "finished" : "questioning";
+      if (window.__completeOnResume) old.learning_report = report(5);
+      data = { ...payload(old), ...(window.__completeOnResume ? {completion:{note_id:80,record_id:90,goals_completed:true,learning_report:report(5),scope:{subject:"사회",schoolLevel:"고등학교",grade:"1학년",unitCode:"10통사1-03"}}} : {}) };
+    }
     else if (path === "/sessions/10/pause") { old.state = "paused"; data = { ...payload(old), message: "대화와 진행 상태를 저장했습니다." }; }
     else if (path === "/sessions/10/restart") { restarted = true; old.state = "paused"; data = { ...payload(fresh), restarted_from_session_id: 10 }; }
     else if (path === "/sessions/10") data = payload(old);
+    else if (path === "/sessions/11/messages") {
+      if (window.__failCompletion) return new Response(JSON.stringify({detail:"완료 저장 테스트 오류"}),{status:503});
+      const complete = fresh.checked_count === 4;
+      fresh.checked_count = complete ? 5 : 4;
+      fresh.learning_report = report(fresh.checked_count);
+      fresh.state = complete ? "finished" : "questioning";
+      data = {message:{id:messageSequence++,sender_type:"ai",content:complete?"오늘의 학습목표를 모두 확인했어요.":"마지막으로 핵심을 정리해볼까요?"},learning_report:fresh.learning_report,session_state:fresh.state,
+        completion:complete?{note_id:80,record_id:90,goals_completed:true,learning_report:report(5),scope:{subject:"사회",schoolLevel:"고등학교",grade:"1학년",unitCode:"10통사1-03"}}:null};
+    }
     else if (path === "/sessions/10/messages") {
       if (window.__delayHelp) await new Promise((resolve) => { window.__releaseHelp = resolve; });
       if (body.help_action !== "hint") throw new Error("Only the hint option is exposed by this UI");
@@ -98,7 +112,7 @@ function installFixtures() {
         })),
       }; data = result;
     } else if (path === "/quizzes/40/review") data = result;
-    else if (path === "/rag/catalog") data = { curriculum_year: "2022", subjects: [] };
+    else if (path === "/rag/catalog") data = {name:new URL(input,location.href).searchParams.get("subject"),curriculum_year:"2022",school_levels:[{name:"고등학교",grades:[{name:"1학년",units:[{code:"10통사1-03",title:"자연환경과 인간"}]}]}]};
     else if (path === "/rag/status") data = { subject: "사회", available: true };
     else throw new Error(`Unmocked API request: ${method} ${path}`);
     return new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -179,12 +193,15 @@ try {
   assert.ok(await evaluate("document.querySelector('.resume-session').textContent.includes('2/5')"));
   await evaluate("document.querySelector('.resume-history summary').click()");
   await wait("document.querySelector('.resume-history ol')");
+  assert.ok(await evaluate("document.querySelectorAll('.resume-history .katex').length >= 8"), "Saved transcript preview must render equations too");
   await screenshot("resume-desktop", 1280, 1100);
   await screenshot("resume-mobile-dark", 390, 1000, true);
   await click("이어서 학습");
   await wait("document.querySelector('.study-chat-container')");
+  await evaluate("[...document.querySelectorAll('.evidence-panel summary')].find(e => e.textContent.includes('참고한 학습 자료')).click()");
+  assert.ok(await evaluate("Boolean(document.querySelector('.evidence-list .katex'))"), "Reference excerpts render math");
   assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('2개 AI 확인')"));
-  await wait("document.querySelectorAll('.message-row.ai .katex').length === 7");
+  await wait("document.querySelectorAll('.message-row.ai .bubble .katex').length === 7");
   assert.equal(await evaluate("document.querySelectorAll('.message-row.user .katex').length"), 1);
   assert.ok(await evaluate(`['ai', 'user'].every(role => {
     const bubble = document.querySelector('.message-row.' + role + ' .bubble');
@@ -250,10 +267,45 @@ try {
   await wait("document.querySelector('.study-chat-container')");
   assert.ok(await evaluate("document.querySelector('.learning-report-count').textContent.includes('0개 AI 확인')"));
   assert.equal(await evaluate("document.querySelectorAll('.message-row').length"), 1);
+  const fillAnswer = async (value) => {
+    await evaluate(`(() => { const input=document.querySelector('.chat-input-bar textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,${JSON.stringify(value)}); input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await wait("!document.querySelector('.send-btn').disabled");
+    await evaluate("document.querySelector('.send-btn').click()");
+  };
+  await fillAnswer("확인된 내용을 설명했습니다.");
+  await wait("document.querySelector('.learning-report-count').textContent.includes('4개 AI 확인')");
+  assert.ok(await evaluate("document.querySelector('.learning-report-guidance').textContent.includes('마지막 정리')"));
+  await evaluate("window.__failCompletion=true");
+  await fillAnswer("오늘 배운 핵심을 정리합니다.");
+  await wait("document.querySelector('.study-error')");
+  assert.ok(await evaluate("!document.querySelector('.study-ending') && document.querySelector('.chat-input-bar textarea').value==='오늘 배운 핵심을 정리합니다.'"));
+  await evaluate("window.__failCompletion=false");
+  await fillAnswer("오늘 배운 핵심을 정리합니다.");
+  await wait("document.querySelector('.study-ending')");
+  assert.ok(await evaluate("document.querySelector('.study-ending').textContent.includes('5/5') && !document.querySelector('.chat-input-bar')"));
+  assert.equal(await evaluate("window.__calls.filter(call=>call.path.endsWith('/finish')).length"),0,"Auto completion must not issue a second finish request");
+  assert.ok(await evaluate("!localStorage.getItem('havruta_active_session')"));
+  await screenshot("ending-desktop",1280,1100,false);
+  await screenshot("ending-mobile-dark",390,1000,true);
+  assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth+1"));
+  await click("복습 퀴즈 풀기");
+  await wait("document.querySelector('[aria-label=\"퀴즈 과목\"]')");
+  assert.equal(await evaluate("document.querySelector('[aria-label=\"퀴즈 과목\"]').value"),"사회");
+  await wait("document.querySelector('[aria-label=\"단원\"]')");
+  assert.equal(await evaluate("document.querySelector('[aria-label=\"단원\"]').value"),"10통사1-03");
+  await click("혼자 학습하기");
+  await wait("document.querySelector('.resume-session')");
+  await evaluate("window.__completeOnResume=true");
+  await click("이어서 학습");
+  await wait("document.querySelector('.study-ending')");
+  await click("정리노트 보기");
+  await wait("document.querySelector('.note-paper')");
+  assert.ok(await evaluate("Boolean(document.querySelector('.note-takeaway .katex'))"));
   await click("퀴즈");
   await wait("document.querySelector('.btn-quiz-start')");
   await click("풀기 ➔");
   await wait("document.querySelectorAll('.quiz-question-block').length === 2");
+  assert.ok(await evaluate("Boolean(document.querySelector('.quiz-question-block h3 .katex')) && Boolean(document.querySelector('.quiz-option .katex'))"), "Quiz questions and choices render equations");
   assert.equal(await evaluate("document.querySelectorAll('.quiz-review').length"), 0);
   await evaluate("document.querySelectorAll('.quiz-question-block')[0].querySelectorAll('.quiz-option')[0].click()");
   await evaluate("document.querySelectorAll('.quiz-question-block')[1].querySelectorAll('.quiz-option')[1].click()");

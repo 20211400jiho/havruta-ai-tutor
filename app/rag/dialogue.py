@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from app.rag.english_practice import is_theory_question, followup_options, is_question_form_answer
+from app.rag.interaction_policy import normalize_question_format
 
 STAGES = ("개념 설명", "근거 확인", "생각 수정", "적용", "최종 정리")
 STAGE_GOALS = {
@@ -51,6 +52,8 @@ class ProgressiveTutorTurn(TutorTurn):
     hint_text: str = Field(default="", max_length=180)
     # Correctness of the latest sub-answer is separate from stage completion.
     answer_status: Literal["correct", "partial", "incorrect", "unassessed"] = "unassessed"
+    # Empty when no additional evidence is needed; defaults read old snapshots.
+    missing_requirement: str = Field(default="", max_length=250)
 
     @field_validator("hint_keywords")
     @classmethod
@@ -116,6 +119,8 @@ def restore_state(history: list[dict]) -> DialogueState:
 
 def classify_intent(answer: str) -> str:
     normalized = re.sub(r"[\s.!?~？]+", "", answer).lower()
+    if "힌트" in normalized:
+        return "hint"
     # A request for an example is help, not a student explaining their own example.
     if re.search(r"(?:예시|예를|사례).{0,18}(?:설명해(?:줘|주세요)|들어(?:줘|주세요)|보여(?:줘|주세요)|알려(?:줘|주세요))$", normalized):
         return "example"
@@ -123,9 +128,11 @@ def classify_intent(answer: str) -> str:
         r"(?:쉽게|쉬운말로|간단하게).{0,12}(?:설명해(?:줘|주세요)|풀어(?:줘|주세요)|말해(?:줘|주세요))$", normalized,
     ):
         return "simplify"
+    if re.search(r"설명해(?:줘|주세요)|다시설명|설명좀", normalized):
+        return "simplify"
     if any(marker in normalized for marker in (
         "몰라", "모르겠", "잘모르", "이해가안", "이해안", "이해못", "어려워",
-        "어렵다", "힌트", "도와줘", "설명해줘", "다시설명",
+        "어렵다", "도와줘",
     )):
         return "hint"
     if normalized in {"응", "네", "예", "ㅇㅇ", "알겠어", "알겠습니다", "그래", "맞아", "알겠어요"}:
@@ -227,7 +234,9 @@ def apply_assessment(state: DialogueState, turn: TutorTurn, answer: str, source_
         )
     elif state.assessment == "partial":
         state.assessment_issue = "needs_explanation"
-        state.assessment_message = "설명을 조금 더 확인해야 해요. " + turn.reasoning
+        missing = getattr(turn, "missing_requirement", "").strip()
+        state.assessment_message = ("추가로 확인할 내용: " + missing if missing
+                                    else "설명을 조금 더 확인해야 해요. " + turn.reasoning)
     elif state.assessment == "misconception":
         state.assessment_issue = "misconception"
         state.assessment_message = "다시 살펴볼 부분이 있어요. " + (turn.misconception or turn.reasoning)
@@ -250,12 +259,17 @@ def question_repeats(question: str, previous: list[str]) -> bool:
                if (old := re.sub(r"[^가-힣a-z0-9]", "", text.lower())))
 
 
-def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str, subject: str = "일반") -> str:
+def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str, subject: str = "일반",
+                    previous_question: str = "") -> str:
     """Enforce question purpose without inventing mastery or domain facts."""
     completed = state.stage == STAGES[-1] and any(item.get("stage") == STAGES[-1] for item in state.evidence)
     expected = "review" if completed else QUESTION_GOALS[state.stage]
     supported = state.last_intent != "answer" or state.assessment != "understood"
     allowed = {expected, "scaffold"} if supported else {expected}
+    if supported and state.stage == STAGES[0]:
+        # Asking why a correction is needed is still on-topic at the first stage.
+        # Question-purpose labels must not discard a useful corrective question.
+        allowed.add("reason")
     if state.last_intent == "answer" and state.answer_status == "correct" and state.assessment != "understood":
         # A correct calculation can still need reasoning, without going back to
         # elementary comparisons merely because the whole stage is not complete.
@@ -268,21 +282,28 @@ def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str
             state.question_guard = "맞힌 답변을 기초 문제로 되돌리지 않고 이유로 연결"
     repeated = question_repeats(turn.next_question, state.recent_questions + state.answered_questions)
     theory_question = subject == "영어" and is_theory_question(turn.next_question)
-    if turn.next_question_goal in allowed and not repeated and not theory_question:
+    latest_quote = str(state.evidence[-1].get("quote", "")) if state.evidence else ""
+    regression = (subject == "수학" and state.assessment == "understood"
+                  and bool(re.search(r"때문|므로|따라서|Δ", latest_quote))
+                  and bool(re.search(r"음수의\s*크기|대소\s*비교|수직선|어느.{0,12}(?:작|큰|왼쪽|오른쪽)", turn.next_question)))
+    linear_reask = (subject == "수학" and state.assessment == "understood" and "Δ" in latest_quote
+                    and bool(re.search(r"정비례|일차|기울기|함수", topic))
+                    and bool(re.search(r"변화량|기울기|감소|내려|부호", turn.next_question))
+                    and not re.search(r"일반|구간|조건|바꾸|바뀌|반대|양수로|비선형|ax\s*\+\s*b", turn.next_question))
+    if turn.next_question_goal in allowed and not repeated and not theory_question and not regression and not linear_reask:
         question, goal = turn.next_question, turn.next_question_goal
     else:
-        state.question_guard = "반복 질문 교체" if repeated else "단계에 맞는 질문으로 교체"
-        anchor = next((str(item.get("quote") or "") for item in reversed(state.evidence)
-                       if item.get("quote")), topic)[:180]
+        state.question_guard = "이미 설명한 근거 반복 방지" if linear_reask else "기초 회귀 방지" if regression else "반복 질문 교체" if repeated else "문맥을 유지한 질문 보정"
+        anchor = (previous_question or state.focus_question or topic)[:180].rstrip('?？')
         options = {
-            "concept": [f"‘{topic}’과 관련해 알고 있는 구체적인 사례 하나를 자신의 말로 설명해볼까요?",
-                        f"‘{topic}’에서 이해한 점과 아직 헷갈리는 점을 하나씩 이야기해볼까요?"],
-            "reason": [f"‘{anchor}’라고 설명한 이유를 사례 하나와 연결해 말해볼까요?",
-                       f"‘{anchor}’라는 설명을 확인하려면 어떤 관찰이나 근거가 필요할까요?"],
-            "counterexample": [f"‘{anchor}’라는 설명이 적용되지 않는 경우가 있을지 예를 들어 생각해볼까요?",
-                               f"‘{anchor}’라는 설명에 조건을 하나 덧붙인다면 어떻게 보완할 수 있을까요?"],
-            "application": [f"‘{anchor}’를 활용할 수 있는 새로운 상황 하나를 정해 어떻게 적용할지 설명해볼까요?",
-                            f"‘{anchor}’를 친구가 겪는 문제에 적용한다면 어떤 도움을 줄 수 있을까요?"],
+            "concept": [f"방금 문제 ‘{anchor}’에서 설명을 듣고 고치거나 덧붙일 부분과 그 이유를 말해볼까요?",
+                        "방금 풀던 문제에서 아직 헷갈리는 부분 하나를 골라 이야기해볼까요?"],
+            "reason": ["방금 답을 뒷받침하는 식이나 글의 구절을 골라, 답과 어떻게 연결되는지 설명해볼까요?",
+                       f"방금 문제 ‘{anchor}’에서 답을 판단하는 데 가장 중요한 조건은 무엇인가요?"],
+            "counterexample": ["방금 문제의 조건 하나를 바꿔도 같은 설명이 성립할까요? 바꾼 조건과 이유를 말해볼까요?",
+                               "방금 설명이 성립하지 않을 수 있는 경우를 현재 문제와 연결해 찾아볼까요?"],
+            "application": ["방금 배운 방법을 사용할 수 있는 새 상황을 하나 정하고, 같은 방법을 어떻게 적용할지 설명해볼까요?",
+                            "방금 문제에서 조건 하나를 바꾸어 새로운 문제를 만들고 어떻게 풀지 말해볼까요?"],
             "summary": ["이번 대화에서 이해한 개념과 그 이유, 적용 사례를 자신의 말로 연결해 정리해볼까요?",
                         "처음 생각에서 달라진 점과 아직 궁금한 점을 정리해볼까요?"],
             "review": ["이번 대화는 여기서 마무리해도 좋아요. 더 알아보고 싶은 점이나 복습하고 싶은 부분이 있나요?",
@@ -290,9 +311,14 @@ def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str
         }
         if subject == "영어":
             options = followup_options(topic)
+        if regression:
+            options[expected] = ["같은 관계에서 조건 하나를 바꾸면 결과가 어떻게 달라질까요? 바꿀 조건과 예상한 결과의 이유를 설명해볼까요?"]
+        if linear_reask:
+            options[expected] = ["같은 관계에서 계수의 부호를 반대로 바꾸면 증가·감소 방향은 어떻게 달라질까요? 변화량을 이용해 설명해볼까요?"]
         question = next((q for q in options[expected] if not question_repeats(q, state.recent_questions)),
                         "지금까지 설명 중 어느 부분에서 막혔는지 짚어주면 그 부분부터 함께 풀어볼까요?")
         goal = expected
+    question = normalize_question_format(question)
     state.question_goal = goal
     state.last_question = question
     state.recent_questions = (state.recent_questions + [question])[-8:]
@@ -326,10 +352,18 @@ def learning_report(history: list[dict], topic: str) -> dict:
         "source_ids": evidence.get(stage, {}).get("source_ids", []),
     } for stage, description in STAGE_GOALS.items()]
     remaining = [item["description"] for item in objectives if item["status"] == "not_checked"]
+    remaining_stages = [item["stage"] for item in objectives if item["status"] != "ai_checked"]
+    completion_ready = not remaining_stages
     return {
         "topic": topic, "learning_goal": state.learning_goal or state.focus_question or topic,
         "stage": state.stage, "objectives": objectives,
         "checked_count": len(evidence), "total_count": len(STAGES),
+        "completion_ready": completion_ready,
+        "remaining_stages": remaining_stages,
+        "progress_message": ("오늘 계획한 5개 학습목표를 모두 확인했어요." if completion_ready else
+                             "마지막 정리만 남았어요. 오늘 배운 핵심을 자신의 말로 정리하면 마무리할 수 있어요."
+                             if remaining_stages == [STAGES[-1]] else
+                             f"{len(evidence)}/5 확인했어요. 다음에는 ‘{remaining_stages[0]}’을 함께 살펴봐요."),
         "assessment_issue": state.assessment_issue,
         "assessment_message": state.assessment_message,
         "first_explanation": answers[0] if answers else None,

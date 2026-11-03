@@ -3,6 +3,7 @@ import { api } from "./api";
 import CurriculumSelector from "./CurriculumSelector";
 import LearningReport from "./LearningReport";
 import MathText from "./MathText";
+import StudyCompletion from "./StudyCompletion";
 import InterruptedSessions from "./InterruptedSessions";
 import { ACTIVE_SESSION_KEY, getClientValue, removeClientValue, setClientValue } from "./clientStorage";
 import "./StudyView.css";
@@ -12,7 +13,7 @@ const AI_TUTOR_NAME = "하루";
 const SUBJECTS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
 const HINT_REQUEST = "지금 질문에 대한 힌트를 주세요.";
 
-export default function StudyView({ user }) {
+export default function StudyView({ user, onNavigate }) {
   const [selectedSubject, setSelectedSubject] = useState("");
   const [curriculumSelection, setCurriculumSelection] = useState(null);
   const [sessionId, setSessionId] = useState(null);
@@ -29,6 +30,7 @@ export default function StudyView({ user }) {
   const [responseMeta, setResponseMeta] = useState(null);
   const [learningReport, setLearningReport] = useState(null);
   const [completedReport, setCompletedReport] = useState(null);
+  const [completion, setCompletion] = useState(null);
   const [ragStatus, setRagStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pendingHelp, setPendingHelp] = useState(null);
@@ -84,14 +86,27 @@ export default function StudyView({ user }) {
     return () => { cancelled = true; };
   }, [selectedSubject]);
 
+  const showCompletion = (result, targetId) => {
+    const saved = result.completion || result;
+    setCompletion(saved);
+    setCompletedReport(saved.learning_report || result.learning_report || learningReport);
+    setOpenSessions((current) => current.filter((item) => item.id !== targetId));
+    removeClientValue(ACTIVE_SESSION_KEY); setSuggestedId(null);
+    setSessionId(null); setActiveSession(null); setMessages([]); setFeedback(null); setMessageMeta({}); setResponseMeta(null);
+    setNotice(""); setError("");
+    // A new draft typed while awaiting the final answer is not erased.
+  };
+
   const adoptSession = (result) => {
     if (!result?.session?.id || !Array.isArray(result.session.messages)) {
       throw new Error("학습 대화 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
     }
+    if (result.completion) { showCompletion(result, result.session.id); return; }
     setSessionId(result.session.id);
     setActiveSession(result.session);
     setLearningReport(result.session.learning_report || null);
     setCompletedReport(null);
+    setCompletion(null);
     setMessages(result.session.messages);
     setMessageMeta(metadataByMessage(result.session.messages));
     setResponseMeta(result.response_meta || null);
@@ -190,6 +205,7 @@ export default function StudyView({ user }) {
       if (!result?.message || typeof result.message.content !== "string") {
         throw new Error("AI 응답 형식이 올바르지 않습니다. 다시 시도해 주세요.");
       }
+      if (result.completion) { showCompletion(result, sessionId); return; }
       setMessages((current) => [...current, {
         ...result.message,
         sender_type: typeof result.message.sender_type === "string" ? result.message.sender_type : "ai",
@@ -212,21 +228,26 @@ export default function StudyView({ user }) {
   const requestHint = () => sendMessage(HINT_REQUEST, "hint");
 
   const finish = async () => {
+    if (loading || messagePending.current) return;
+    if (input.trim() && !window.confirm("아직 보내지 않은 입력은 이번 기록에 포함되지 않아요. 여기까지 학습을 마칠까요?")) return;
     setLoading(true);
     try {
       const result = await api(`/sessions/${sessionId}/finish`, { method: "POST" });
-      setCompletedReport(result.learning_report || learningReport);
-      setOpenSessions((current) => current.filter((item) => item.id !== sessionId));
-      removeClientValue(ACTIVE_SESSION_KEY);
-      setSuggestedId(null);
-      setSessionId(null); setActiveSession(null); setMessages([]); setFeedback(null); setMessageMeta({}); setResponseMeta(null);
+      showCompletion(result, sessionId);
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
   };
 
   if (!sessionId) return (
     <main className={`study-start-card${completedReport ? " study-start-card--with-report" : ""}`}>
-      {completedReport && <section className="study-completed-report" aria-label="지난 학습 결과"><LearningReport report={completedReport} finished /></section>}
+      {completedReport && <section className="study-completed-report" aria-label="지난 학습 결과">
+        <StudyCompletion report={completedReport} completion={completion}
+          onNotes={() => onNavigate?.(3, { noteId: completion?.note_id })}
+          onQuiz={() => onNavigate?.(2, { scope: completion?.scope })}
+          onNewStudy={() => { setCompletedReport(null); setCompletion(null); setError(""); }} />
+        {input.trim() && <p className="study-draft-saved">보내지 않은 입력 · 이번 기록에는 포함되지 않았어요: <MathText text={input} /></p>}
+        <LearningReport report={completedReport} finished />
+      </section>}
       <span className="study-kicker">혼자 학습하기 · 중·고등학생</span>
       <h2>{completedReport ? "다음으로 탐구할 단원은?" : "오늘은 무엇을 알아볼까요?"}</h2>
       <p className="study-intro">단원을 고르고 내 생각을 설명해보세요. AI가 질문을 이어갑니다.</p>
@@ -278,7 +299,7 @@ export default function StudyView({ user }) {
         <span id="study-help-description">막혔다면 하루에게 도움을 요청해보세요.</span>
         <div><button type="button" disabled={loading} onClick={requestHint}><HelpIcon />{pendingHelp === "hint" ? "힌트 요청 중…" : "힌트"}</button></div>
       </div>
-      <form className="chat-input-bar" onSubmit={send}><textarea rows={2} aria-label="내 생각과 풀이 과정" aria-describedby="study-help-description" value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 그 이유를 적어보세요." /><button className="send-btn" disabled={loading || !input.trim()}>보내기</button></form>
+      <form className="chat-input-bar" onSubmit={send}><textarea rows={2} disabled={loading} aria-label="내 생각과 풀이 과정" aria-describedby="study-help-description" value={input} onChange={(e) => setInput(e.target.value)} maxLength={5000} placeholder="내 생각과 그 이유를 적어보세요." /><button className="send-btn" disabled={loading || !input.trim()}>보내기</button></form>
     </div>
   );
 }
@@ -295,7 +316,7 @@ function HintPanel({ hint }) {
   if (!keywords.length) return null;
   return <aside className="tutor-hint" aria-label="생각을 돕는 힌트">
     <span className="tutor-hint-label">{hint.trigger === "stalled" ? "잠깐, 생각의 단서" : "생각을 돕는 힌트"} · {Math.min(3, Math.max(1, Number(hint.level) || 1))}단계</span>
-    <ul className="tutor-hint-keywords">{keywords.map((word) => <li key={word}>{word}</li>)}</ul>
+    <ul className="tutor-hint-keywords">{keywords.map((word) => <li key={word}><MathText text={word} /></li>)}</ul>
     {typeof hint.text === "string" && hint.text && <p><MathText text={hint.text} /></p>}
     <small>단어만 따라 쓰기보다, 떠오르는 생각과 이유를 말해보세요.</small>
   </aside>;
@@ -304,7 +325,7 @@ function HintPanel({ hint }) {
 function EvidencePanel({ meta }) {
   const providerLabel = { openai: "OpenAI 생성", rule: "규칙 기반 폴백", question_template: "RAG 질문 구성" }[meta.ai_provider] || "응답 구성";
   const retrieverLabel = { chroma: "ChromaDB 의미 검색", lexical: "어휘 검색 폴백", none: "검색 근거 없음" }[meta.retriever] || meta.retriever;
-  return <details className="evidence-panel"><summary>{meta.sources?.length ? `참고한 학습 자료 ${meta.sources.length}개` : "참고 자료 없음 · 답변 확인 필요"}{meta.ai_provider === "rule" ? " · 기본 안내" : ""}</summary><div className="evidence-list">{(meta.sources || []).map((source) => <article key={source.source_id}><strong>{source.achievement_standard || `${source.subject || "교과"} 자료`}</strong><p>{source.excerpt}</p><small>{source.school_level || ""} {source.grade || ""}</small></article>)}{!meta.sources?.length && <p>현재 질문에 대한 검색 자료를 찾지 못했습니다. 답변의 사실 여부는 별도 확인이 필요합니다.</p>}<small>응답 정보: {providerLabel} · {retrieverLabel}</small></div></details>;
+  return <details className="evidence-panel"><summary>{meta.sources?.length ? `참고한 학습 자료 ${meta.sources.length}개` : "참고 자료 없음 · 답변 확인 필요"}{meta.ai_provider === "rule" ? " · 기본 안내" : ""}</summary><div className="evidence-list">{(meta.sources || []).map((source) => <article key={source.source_id}><strong><MathText text={source.achievement_standard || `${source.subject || "교과"} 자료`} /></strong><p><MathText text={source.excerpt || ""} /></p><small>{source.school_level || ""} {source.grade || ""}</small></article>)}{!meta.sources?.length && <p>현재 질문에 대한 검색 자료를 찾지 못했습니다. 답변의 사실 여부는 별도 확인이 필요합니다.</p>}<small>응답 정보: {providerLabel} · {retrieverLabel}</small></div></details>;
 }
 
 function formatFeedback(value, fallback) {

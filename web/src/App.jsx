@@ -63,6 +63,8 @@ function getInitialDarkMode() {
 
 function App() {
   const [activeMenu, setActiveMenu] = useState(0);
+  const [studyTarget, setStudyTarget] = useState(null);
+  const navigate = (menu, target = null) => { setStudyTarget(target); setActiveMenu(menu); };
   const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(Boolean(getToken()));
@@ -82,6 +84,7 @@ function App() {
     setToken(null);
     setUser(null);
     setActiveMenu(0);
+    setStudyTarget(null);
   };
 
   if (checkingAuth) return <main className="auth-page">로그인 정보를 확인하고 있어요...</main>;
@@ -89,12 +92,12 @@ function App() {
 
   return (
     <div className="app-container" style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} onLogout={logout} />
+      <Sidebar activeMenu={activeMenu} setActiveMenu={navigate} onLogout={logout} />
       <div className="main-content" style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
-        {activeMenu === 0 && <Home setActiveMenu={setActiveMenu} user={user} />}
-        {activeMenu === 1 && <StudyView user={user} />}
-        {activeMenu === 2 && <QuizView />}
-        {activeMenu === 3 && <NoteView />}
+        {activeMenu === 0 && <Home setActiveMenu={navigate} user={user} />}
+        {activeMenu === 1 && <StudyView user={user} onNavigate={navigate} />}
+        {activeMenu === 2 && <QuizView initialScope={studyTarget?.scope} />}
+        {activeMenu === 3 && <NoteView initialNoteId={studyTarget?.noteId} />}
         {activeMenu === 4 && <CalendarView />}
         {activeMenu === 5 && <StudyRoomView user={user} />}
         {activeMenu === 6 && <MyPageView user={user} onNavigate={setActiveMenu} />}

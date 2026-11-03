@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "./api";
+import MathText from "./MathText";
 
 export default function InterruptedSessions({ sessions, suggestedId, loading, onResume, onRestart, onDelete }) {
   const [showAll, setShowAll] = useState(false);
@@ -25,10 +26,10 @@ export default function InterruptedSessions({ sessions, suggestedId, loading, on
       <h4>{session.topic || "하브루타 학습"}</h4>
       <p className="resume-date">마지막 대화 {formatDate(session.last_activity_at || session.started_at)} · 내 답변 {session.answer_count || 0}회</p>
       <div className="resume-progress"><label htmlFor={`resume-progress-${session.id}`}>학습목표 AI 확인 <strong>{session.checked_count || 0}/{session.total_count || 5}</strong></label><progress id={`resume-progress-${session.id}`} value={session.checked_count || 0} max={session.total_count || 5} /><span>현재 단계 · {session.stage || "개념 설명"}</span></div>
-      {session.last_question && <p className="resume-question"><span>이어서 생각할 질문</span>{session.last_question}</p>}
+      {session.last_question && <p className="resume-question"><span>이어서 생각할 질문</span><MathText text={session.last_question} /></p>}
       <details className="resume-history" onToggle={(event) => { if (event.currentTarget.open) preview(session.id); }}><summary>지난 대화 보기</summary>
         {errors[session.id] ? <p role="alert">{errors[session.id]} <button type="button" onClick={() => preview(session.id)}>다시 불러오기</button></p>
-          : previews[session.id] ? <ol>{previews[session.id].messages.map((message) => <li key={message.id}><strong>{message.sender_type === "user" ? "나 🙋" : "하루 🦉"}</strong><p>{message.content}</p></li>)}</ol>
+          : previews[session.id] ? <ol>{previews[session.id].messages.map((message) => <li key={message.id}><strong>{message.sender_type === "user" ? "나 🙋" : "하루 🦉"}</strong><p><MathText text={message.content} /></p></li>)}</ol>
           : <p role="status">저장된 대화를 불러오고 있어요.</p>}
       </details>
       <div className="resume-actions"><button type="button" disabled={loading || session.can_resume === false} onClick={() => onResume(session)}>이어서 학습</button><button type="button" className="resume-restart" disabled={loading || session.can_restart === false} onClick={() => onRestart(session)}>처음부터 다시</button></div>

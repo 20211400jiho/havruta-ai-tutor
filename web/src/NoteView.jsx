@@ -65,7 +65,7 @@ function NoteDetail({ note }) {
   );
 }
 
-export default function NoteView() {
+export default function NoteView({ initialNoteId } = {}) {
   const [notes, setNotes] = useState([]);
   const [selectedNote, setSelectedNote] = useState(null);
   const [error, setError] = useState("");
@@ -76,6 +76,13 @@ export default function NoteView() {
   useEffect(() => {
     api("/notes").then((result) => setNotes(result.notes)).catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
   }, []);
+  useEffect(() => {
+    if (!initialNoteId) return undefined;
+    let active = true;
+    api(`/notes/${initialNoteId}`).then((result) => { if (active) setSelectedNote(result.note); })
+      .catch((requestError) => { if (active) setError(requestError.message); });
+    return () => { active = false; };
+  }, [initialNoteId]);
 
   const openNote = async (id) => {
     setBusy(true); setError(""); setNotice("");

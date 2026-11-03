@@ -27,6 +27,7 @@
 .learning-report-title { font-size: 18px; font-weight: 750; letter-spacing: -.025em; }
 .learning-report-count { color: var(--report-muted); font-size: 13px; font-weight: 400; }
 .learning-report-count strong { color: var(--report-accent); font-weight: 700; }
+.learning-report-guidance { color: var(--report-muted); font-size: 12px; line-height: 1.5; }
 .learning-report-chevron { flex: 0 0 auto; color: var(--report-muted); font-size: 22px; }
 .learning-report[open] > summary .learning-report-chevron { transform: rotate(180deg); }
 .learning-report-body { padding: 0 24px 22px; max-height: 34vh; overflow-y: auto; display: grid; gap: 24px; }

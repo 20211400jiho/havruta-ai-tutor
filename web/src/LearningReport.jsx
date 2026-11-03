@@ -10,6 +10,7 @@ export default function LearningReport({ report, finished = false }) {
         <span className="learning-report-heading">
           <span className="learning-report-title">{finished ? "이번 학습 돌아보기" : "학습목표와 진행"}</span>
           <span className="learning-report-count">전체 {report.objectives.length}개 항목 중 <strong>{checked}개 AI 확인</strong></span>
+          {!finished && report.progress_message && <span className="learning-report-guidance">{report.progress_message}</span>}
         </span>
         <span className="learning-report-chevron" aria-hidden="true">⌄</span>
       </summary>
