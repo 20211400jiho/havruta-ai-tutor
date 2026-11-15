@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.database.config import settings
 from app.database.connection import get_db
 from app.dependencies import get_current_user
 from app.models.study_content import Quiz, QuizAttempt
@@ -9,6 +10,7 @@ from app.schemas.study_content import QuizGenerateRequest, QuizSubmitRequest
 from app.services.content_service import QuizSourceNotFoundError, generate_quiz
 from app.rag.curriculum import is_valid_curriculum_selection
 from app.services.quiz_review import attempt_review
+from app.services.rate_limit_service import AIUsageLimitError, check_and_record_ai_usage
 
 
 router = APIRouter(prefix="/quizzes", tags=["복습 퀴즈"])
@@ -46,6 +48,12 @@ def create_quiz(
         payload.unit_code,
     ):
         raise HTTPException(status_code=422, detail="과목·학교급·학년·단원 조합이 올바르지 않습니다.")
+    if settings.openai_api_key:
+        # Quiz generation now makes one OpenAI verification call.
+        try:
+            check_and_record_ai_usage(db, user.id, "quiz_generation")
+        except AIUsageLimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc), headers={"Retry-After": str(exc.retry_after)}) from exc
     try:
         quiz = generate_quiz(
             db,
