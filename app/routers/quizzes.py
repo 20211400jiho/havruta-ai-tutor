@@ -8,7 +8,7 @@ from app.models.study_content import Quiz, QuizAttempt
 from app.models.user import User
 from app.schemas.study_content import QuizGenerateRequest, QuizSubmitRequest
 from app.services.content_service import QuizSourceNotFoundError, generate_quiz
-from app.rag.curriculum import is_valid_curriculum_selection
+from app.rag.curriculum import DISABLED_SUBJECT_MESSAGE, is_subject_enabled, is_valid_curriculum_selection
 from app.services.quiz_review import attempt_review
 from app.services.rate_limit_service import AIUsageLimitError, check_and_record_ai_usage
 
@@ -41,6 +41,8 @@ def create_quiz(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    if payload.subject and not is_subject_enabled(payload.subject):
+        raise HTTPException(status_code=422, detail=DISABLED_SUBJECT_MESSAGE)
     if payload.unit_code and not is_valid_curriculum_selection(
         payload.subject or "",
         payload.school_level,

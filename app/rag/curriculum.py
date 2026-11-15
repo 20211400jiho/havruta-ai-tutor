@@ -5,6 +5,14 @@ from pathlib import Path
 
 
 CATALOG_PATH = Path(__file__).resolve().parents[1] / "resources" / "curriculum_catalog.json"
+# Subjects withdrawn from the service. Their catalog data and tutoring code stay
+# so they can be re-enabled by removing them here.
+DISABLED_SUBJECTS = frozenset({"영어"})
+DISABLED_SUBJECT_MESSAGE = "현재 제공하지 않는 과목입니다."
+
+
+def is_subject_enabled(subject: str | None) -> bool:
+    return (subject or "").strip() not in DISABLED_SUBJECTS
 
 
 @lru_cache(maxsize=1)
@@ -17,6 +25,8 @@ def load_curriculum_catalog() -> dict:
 
 def get_subject_catalog(subject: str) -> dict | None:
     normalized_subject = subject.strip()
+    if not is_subject_enabled(normalized_subject):
+        return None
     catalog = load_curriculum_catalog()
     for item in catalog.get("subjects", []):
         if item.get("name") != normalized_subject:

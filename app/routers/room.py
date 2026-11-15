@@ -10,6 +10,7 @@ from app.dependencies import get_current_user
 from app.models.learning import LearningRoom, RoomMember
 from app.models.user import User
 from app.schemas.room import PersonalRoomRequest, RoomCreateRequest, RoomJoinRequest
+from app.rag.curriculum import DISABLED_SUBJECT_MESSAGE, is_subject_enabled
 from app.services.connection_manager import manager
 
 
@@ -60,6 +61,8 @@ def create_room(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    if request.subject and not is_subject_enabled(request.subject):
+        raise HTTPException(status_code=422, detail=DISABLED_SUBJECT_MESSAGE)
     room = LearningRoom(
         title=request.title.strip(),
         subject=request.subject,
@@ -86,6 +89,8 @@ def personal_room(
     subject, grade = request.subject.strip(), request.grade.strip()
     if not subject or not grade:
         raise HTTPException(status_code=422, detail="과목과 학년을 선택해주세요.")
+    if not is_subject_enabled(subject):
+        raise HTTPException(status_code=422, detail=DISABLED_SUBJECT_MESSAGE)
     room = db.query(LearningRoom).filter_by(
         owner_id=user.id, subject=subject, grade=grade, max_members=1, status="active",
     ).first()

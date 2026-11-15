@@ -371,7 +371,8 @@ def test_public_signup_cannot_assign_teacher_role(client):
     assert response.status_code == 422
 
 
-def test_uncertain_answer_resumes_without_advancing_stage(client, auth_headers):
+def test_uncertain_answer_resumes_without_advancing_stage(client, auth_headers, monkeypatch):
+    monkeypatch.setattr("app.rag.curriculum.DISABLED_SUBJECTS", frozenset())
     room = client.post(
         "/rooms",
         headers=auth_headers,

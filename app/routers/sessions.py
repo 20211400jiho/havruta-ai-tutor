@@ -16,7 +16,7 @@ from app.models.study_content import StudyNote
 from app.schemas.chat import MessageCreateRequest, SessionCreateRequest
 from app.services.content_service import create_note_for_session
 from app.database.config import settings
-from app.rag.curriculum import is_valid_curriculum_selection
+from app.rag.curriculum import DISABLED_SUBJECT_MESSAGE, is_subject_enabled, is_valid_curriculum_selection
 from app.services.rate_limit_service import AIUsageLimitError, check_and_record_ai_usage
 from app.rag.tutor import conversation_stage, initial_question, source_summary, tutor_reply
 from app.rag.dialogue import DialogueState, extract_question, learning_report
@@ -72,6 +72,11 @@ def enforce_ai_quota(db: Session, user_id: int, action: str) -> None:
         ) from exc
 
 
+def session_available(session: ChatSession) -> bool:
+    """A session can continue only in an active room for a subject still offered."""
+    return bool(session.room and session.room.status == "active" and is_subject_enabled(session.room.subject))
+
+
 def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
     result = {
         "id": session.id,
@@ -85,9 +90,9 @@ def session_dict(session: ChatSession, include_messages: bool = False) -> dict:
         "started_at": session.started_at,
         "ended_at": session.ended_at,
         "subject": session.room.subject if session.room else None,
-        "can_resume": session.state != "finished" and bool(session.room and session.room.status == "active"),
-        "can_restart": bool(session.room and session.room.status == "active"),
-        "can_delete": session.state != "finished" and not bool(session.room and session.room.status == "active"),
+        "can_resume": session.state != "finished" and session_available(session),
+        "can_restart": session_available(session),
+        "can_delete": session.state != "finished" and not session_available(session),
     }
     if include_messages:
         result["messages"] = [
@@ -172,6 +177,8 @@ def create_session(
     room = ensure_room_access(db, payload.room_id, user.id)
     if room.status != "active":
         raise HTTPException(status_code=409, detail="삭제된 학습방에서는 새 학습을 시작할 수 없습니다.")
+    if not is_subject_enabled(room.subject):
+        raise HTTPException(status_code=409, detail=DISABLED_SUBJECT_MESSAGE)
     school_level, grade = resolve_learning_scope(room, payload.school_level, payload.grade)
     if payload.unit_code and not is_valid_curriculum_selection(
         room.subject or "일반",
@@ -285,7 +292,7 @@ def pause_session(session_id: int, user: User = Depends(get_current_user), db: S
 @router.delete("/{session_id}")
 def delete_unavailable_session(session_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     session = owned_session(db, session_id, user.id, lock=True)
-    if session.state == "finished" or (session.room and session.room.status == "active"):
+    if session.state == "finished" or session_available(session):
         raise HTTPException(status_code=409, detail="더 이상 이용할 수 없는 미완료 학습만 삭제할 수 있습니다.")
     # Never cascade into completed records or independently saved notes.
     if (db.query(LearningRecord.id).filter_by(session_id=session.id).first()
@@ -314,6 +321,8 @@ def resume_session(session_id: int, user: User = Depends(get_current_user), db: 
     room = ensure_room_access(db, session.room_id, user.id)
     if room.status != "active":
         raise HTTPException(status_code=409, detail="삭제된 학습방의 기록은 볼 수 있지만 이어서 진행할 수 없습니다.")
+    if not is_subject_enabled(room.subject):
+        raise HTTPException(status_code=409, detail=DISABLED_SUBJECT_MESSAGE)
     session.state = "questioning"
     db.commit()
     return session_response(session)

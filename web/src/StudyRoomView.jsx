@@ -3,7 +3,7 @@ import { api, getToken, getWebSocketUrl } from "./api";
 import CurriculumSelector from "./CurriculumSelector";
 import "./StudyRoomView.css";
 
-const SUBJECT_OPTIONS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
+const SUBJECT_OPTIONS = ["국어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
 
 export default function StudyRoomView({ user }) {
   const [rooms, setRooms] = useState([]);

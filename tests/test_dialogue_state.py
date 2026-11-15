@@ -112,6 +112,7 @@ def test_missing_or_invalid_structured_output_falls_back_without_losing_state(mo
 
 
 def test_state_is_saved_restored_and_isolated_between_sessions(client, auth_headers, monkeypatch):
+    monkeypatch.setattr("app.rag.curriculum.DISABLED_SUBJECTS", frozenset())
     context = SearchResult(None, "english-1", "useful: 도움이 되는", 0.8,
                            {"retriever": "chroma", "question": "useful은 무슨 뜻인가요?"})
     monkeypatch.setattr(tutor, "search", lambda *args, **kwargs: [context])

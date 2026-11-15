@@ -10,7 +10,7 @@ import "./StudyView.css";
 
 const AI_TUTOR_NAME = "하루";
 
-const SUBJECTS = ["국어", "영어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
+const SUBJECTS = ["국어", "수학", "사회", "사회문화", "과학", "도덕", "기술가정", "정보"];
 const HINT_REQUEST = "지금 질문에 대한 힌트를 주세요.";
 
 export default function StudyView({ user, onNavigate }) {

@@ -136,7 +136,8 @@ def test_real_english_questions_are_not_reclassified_as_practice_answers():
     assert not is_question_form_answer("Can I borrow a pen?", "이 표현의 뜻은 무엇인가요?")
 
 
-def test_english_practice_survives_api_pause_and_resume(client, auth_headers):
+def test_english_practice_survives_api_pause_and_resume(client, auth_headers, monkeypatch):
+    monkeypatch.setattr("app.rag.curriculum.DISABLED_SUBJECTS", frozenset())
     room = client.post("/rooms/personal", headers=auth_headers, json={"subject": "영어", "grade": "중학교 1학년"}).json()["room"]
     created = client.post("/sessions", headers=auth_headers, json={"room_id": room["id"], "topic": "영어 이해",
                          "unit_code": "9영01", "school_level": "중학교", "grade": "1학년"})
