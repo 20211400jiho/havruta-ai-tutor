@@ -94,3 +94,30 @@ def test_blank_instruction_matches_actual_exercise(has_blank):
     output = normalize_question_format(q)
     assert ("빈칸" in output) == has_blank
     assert ("___" in output) == has_blank
+
+
+@pytest.mark.parametrize("assessment,answer_status", [
+    ("understood", "correct"), ("partial", "correct"), ("partial", "partial"), ("misconception", "unassessed"),
+])
+def test_reason_stage_keeps_model_question_one_step_ahead(assessment, answer_status):
+    # 2026-11-17 production samples: a good model question at the reason stage was
+    # replaced by a subject-agnostic template ("식이나 글의 구절").
+    state = DialogueState(stage="근거 확인", last_intent="answer", assessment=assessment, answer_status=answer_status)
+    model = turn(next_question="근육 조직이 손상되면 소화에는 어떤 영향이 있을까요?", next_question_goal="counterexample")
+    assert select_followup(state, model, "생물의 구성", "과학", "조직이 기관이 되는 까닭은?") == model.next_question
+    assert state.question_guard == ""
+
+
+def test_later_stages_do_not_jump_ahead_to_summary():
+    state = DialogueState(stage="적용", last_intent="answer", assessment="partial", answer_status="partial")
+    q = select_followup(state, turn(next_question="오늘 배운 내용을 정리해볼까요?", next_question_goal="summary"),
+                        "정비례", "수학", QUESTION)
+    assert q != "오늘 배운 내용을 정리해볼까요?" and state.question_goal == "application"
+
+
+def test_reason_template_is_subject_neutral_and_anchored():
+    state = DialogueState(stage="근거 확인", last_intent="answer", assessment="partial", answer_status="partial")
+    q = select_followup(state, turn(next_question="오늘 배운 내용을 정리해볼까요?", next_question_goal="summary"),
+                        "자신과의 관계", "도덕", "자기 자신과의 관계를 가꾸는 것은 왜 중요할까요?")
+    assert "식이나 글의 구절" not in q
+    assert "자기 자신과의 관계를 가꾸는 것은 왜 중요할까요" in q and "이유" in q

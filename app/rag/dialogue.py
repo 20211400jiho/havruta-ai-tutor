@@ -290,15 +290,23 @@ def select_followup(state: DialogueState, turn: ProgressiveTutorTurn, topic: str
                     and bool(re.search(r"정비례|일차|기울기|함수", topic))
                     and bool(re.search(r"변화량|기울기|감소|내려|부호", turn.next_question))
                     and not re.search(r"일반|구간|조건|바꾸|바뀌|반대|양수로|비선형|ax\s*\+\s*b", turn.next_question))
+    stage_index = STAGES.index(state.stage)
+    next_goal = QUESTION_GOALS[STAGES[stage_index + 1]] if stage_index + 1 < len(STAGES) else None
+    if (state.last_intent == "answer" and expected in {"concept", "reason"}
+            and next_goal and turn.next_question_goal == next_goal):
+        # A student who already gave a reason should not be pulled back to a
+        # generic stage template. Only one step ahead, and only in early stages,
+        # so later application/summary evidence is still collected in order.
+        allowed.add(next_goal)
     if turn.next_question_goal in allowed and not repeated and not theory_question and not regression and not linear_reask:
         question, goal = turn.next_question, turn.next_question_goal
     else:
         state.question_guard = "이미 설명한 근거 반복 방지" if linear_reask else "기초 회귀 방지" if regression else "반복 질문 교체" if repeated else "문맥을 유지한 질문 보정"
         anchor = (previous_question or state.focus_question or topic)[:180].rstrip('?？')
         options = {
-            "concept": [f"방금 문제 ‘{anchor}’에서 설명을 듣고 고치거나 덧붙일 부분과 그 이유를 말해볼까요?",
+            "concept": [f"방금 문제 ‘{anchor}’에서 헷갈렸던 부분을 바로잡아, 답과 그 이유를 다시 말해볼까요?",
                         "방금 풀던 문제에서 아직 헷갈리는 부분 하나를 골라 이야기해볼까요?"],
-            "reason": ["방금 답을 뒷받침하는 식이나 글의 구절을 골라, 답과 어떻게 연결되는지 설명해볼까요?",
+            "reason": [f"방금 문제 ‘{anchor}’에서 그렇게 답한 이유를 근거 하나와 연결해 설명해볼까요?",
                        f"방금 문제 ‘{anchor}’에서 답을 판단하는 데 가장 중요한 조건은 무엇인가요?"],
             "counterexample": ["방금 문제의 조건 하나를 바꿔도 같은 설명이 성립할까요? 바꾼 조건과 이유를 말해볼까요?",
                                "방금 설명이 성립하지 않을 수 있는 경우를 현재 문제와 연결해 찾아볼까요?"],

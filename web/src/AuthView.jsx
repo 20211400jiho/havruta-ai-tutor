@@ -47,7 +47,7 @@ export default function AuthView({ onAuthenticated }) {
   return (
     <main className="auth-page">
       <form className="auth-card" onSubmit={submit}>
-        <div className="auth-brand">AI Study</div>
+        <div className="auth-brand">하브루타</div>
         <h1>{mode === "login" ? "다시 만나서 반가워요" : "하브루타 학습 시작하기"}</h1>
         <p>중·고등학생을 위한 AI 하브루타 학습. 교과 개념을 내 말로 설명하고, 질문하며 함께 익혀보세요.</p>
         {mode === "signup" && (

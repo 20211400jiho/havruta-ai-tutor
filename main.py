@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,7 +15,7 @@ from app.routers.quizzes import router as quizzes_router
 from app.routers.room import router as room_router
 from app.routers.root import router as root_router
 from app.routers.sessions import router as sessions_router
-from app.rag.retriever import index_local_documents
+from app.rag.retriever import index_local_documents, warm_up_vector_search
 from app.services.connection_manager import manager
 
 
@@ -27,9 +28,12 @@ async def lifespan(_: FastAPI):
     finally:
         db.close()
     await manager.start()
+    # Warm the vector search in the background so health checks are not delayed.
+    warm_up_task = asyncio.create_task(asyncio.to_thread(warm_up_vector_search))
     try:
         yield
     finally:
+        warm_up_task.cancel()
         await manager.stop()
 
 

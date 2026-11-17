@@ -242,6 +242,26 @@ def _embedding_model():
     )
 
 
+def warm_up_vector_search() -> bool:
+    """Load the Chroma index and embedding model before the first student request.
+
+    Without this, the first session after a deploy waited for the model load
+    (about 40-50 s observed on 2026-11-17). Failures only log: search keeps its
+    normal lazy loading and lexical fallback.
+    """
+    if settings.rag_provider.strip().lower() not in {"auto", "chroma"}:
+        return False
+    try:
+        _chroma_collection()
+        model = _embedding_model()
+        with _chroma_lock:
+            model.encode(["query: 준비"], convert_to_numpy=True)
+        return True
+    except Exception as exc:
+        logger.warning("벡터 검색 사전 준비를 건너뜁니다: %s", exc)
+        return False
+
+
 def _metadata_from_content(metadata: dict | None, content: str) -> dict:
     """보관된 Chroma 문서 본문에서 빠진 구조화 필드를 복구한다."""
     result = dict(metadata or {})

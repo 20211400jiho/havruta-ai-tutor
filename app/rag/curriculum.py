@@ -23,6 +23,34 @@ def load_curriculum_catalog() -> dict:
         return json.load(file)
 
 
+def unit_matches_school_level(unit_code: str | None, school_level: str | None) -> bool:
+    """2022 achievement codes start with 9 (middle) or 10/12 (high school).
+
+    Source rows labelled with the other school level are hidden from selection
+    instead of being shown under the wrong level (e.g. 고1 국어 under 중1).
+    """
+    code = (unit_code or "").strip()
+    if school_level == "중학교":
+        return code.startswith("9")
+    if school_level == "고등학교":
+        return code.startswith(("10", "12"))
+    return True
+
+
+def _without_mismatched_units(subject_item: dict) -> dict:
+    levels = []
+    for level in subject_item.get("school_levels", []):
+        grades = []
+        for grade in level.get("grades", []):
+            units = [unit for unit in grade.get("units", [])
+                     if unit_matches_school_level(unit.get("code"), level.get("name"))]
+            if units:
+                grades.append({**grade, "units": units})
+        if grades:
+            levels.append({**level, "grades": grades})
+    return {**subject_item, "school_levels": levels}
+
+
 def get_subject_catalog(subject: str) -> dict | None:
     normalized_subject = subject.strip()
     if not is_subject_enabled(normalized_subject):
@@ -31,7 +59,7 @@ def get_subject_catalog(subject: str) -> dict | None:
     for item in catalog.get("subjects", []):
         if item.get("name") != normalized_subject:
             continue
-        result = deepcopy(item)
+        result = _without_mismatched_units(deepcopy(item))
         result["curriculum_year"] = catalog.get("curriculum_year")
         result["source"] = catalog.get("source")
         result["standard_count"] = sum(
