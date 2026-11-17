@@ -122,21 +122,29 @@ async def websocket_chat(
         await websocket.close(code=4401, reason="인증이 필요합니다.")
         return
     if not has_room_access(db, room_id, user.id):
+        db.rollback()
         await websocket.close(code=4403, reason="학습방 접근 권한이 없습니다.")
         return
+    user_id, user_name = user.id, user.name
+    # Never hold a transaction while waiting on the socket: an idle open read
+    # transaction blocks schema changes (MySQL metadata lock) and every later
+    # query on learning_rooms queues behind them.
+    db.rollback()
 
     manager.connect(room_id, websocket)
-    await websocket.send_json({"type": "authenticated", "user_id": user.id, "room_id": room_id})
+    await websocket.send_json({"type": "authenticated", "user_id": user_id, "room_id": room_id})
     await manager.broadcast(
         room_id,
-        {"type": "presence", "action": "joined", "user_id": user.id, "user_name": user.name},
+        {"type": "presence", "action": "joined", "user_id": user_id, "user_name": user_name},
     )
     try:
         while True:
+            db.rollback()
             raw_message = await websocket.receive_text()
             # Start a fresh read transaction so room deletion is visible on MySQL too.
             db.rollback()
             if not has_room_access(db, room_id, user_id):
+                db.rollback()
                 await websocket.close(code=4403, reason="학습방이 삭제되었거나 접근 권한이 없습니다.")
                 break
             try:
@@ -151,17 +159,20 @@ async def websocket_chat(
                 await websocket.send_json({"type": "error", "detail": "메시지는 5000자까지 입력할 수 있습니다."})
                 continue
 
-            message = RoomChatMessage(room_id=room_id, user_id=user.id, content=content)
+            message = RoomChatMessage(room_id=room_id, user_id=user_id, content=content)
             db.add(message)
             db.commit()
             db.refresh(message)
             message.user = user
-            await manager.broadcast(room_id, {"type": "message", "message": chat_message_dict(message)})
+            payload = {"type": "message", "message": chat_message_dict(message)}
+            db.rollback()
+            await manager.broadcast(room_id, payload)
     except WebSocketDisconnect:
         pass
     finally:
+        db.rollback()
         manager.disconnect(room_id, websocket)
         await manager.broadcast(
             room_id,
-            {"type": "presence", "action": "left", "user_id": user.id, "user_name": user.name},
+            {"type": "presence", "action": "left", "user_id": user_id, "user_name": user_name},
         )

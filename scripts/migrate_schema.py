@@ -20,6 +20,10 @@ def unique_names(table: str) -> set[str]:
     }
 
 
+def invite_code_is_nullable(columns: list[dict]) -> bool:
+    return any(column["name"] == "invite_code" and column.get("nullable", True) for column in columns)
+
+
 def migrate_quiz_explanations(connection) -> None:
     if "option_explanations" not in {column["name"] for column in inspect(connection).get_columns("quiz_questions")}:
         connection.execute(text("ALTER TABLE quiz_questions ADD COLUMN option_explanations JSON NULL"))
@@ -73,7 +77,10 @@ def migrate() -> None:
                         {"code": code, "room_id": room_id},
                     )
                     break
-        connection.execute(text("ALTER TABLE learning_rooms MODIFY invite_code VARCHAR(10) NOT NULL"))
+        # DDL waits for every open transaction that read learning_rooms (MySQL
+        # metadata lock) and blocks all later reads behind it. Run it only once.
+        if invite_code_is_nullable(inspect(connection).get_columns("learning_rooms")):
+            connection.execute(text("ALTER TABLE learning_rooms MODIFY invite_code VARCHAR(10) NOT NULL"))
 
         constraints = unique_names("learning_rooms")
         if "uq_learning_rooms_invite_code" not in constraints:
