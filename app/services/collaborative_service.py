@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 
 from sqlalchemy.orm import Session, joinedload
@@ -7,6 +8,9 @@ from app.models.chat import RoomChatMessage
 from app.models.learning import LearningRoom
 from app.rag.retriever import search, tokenize
 from app.rag.tutor import generate_with_provider, source_summary
+
+PARTICIPANT_MESSAGE_LIMIT = 3
+PARTICIPANT_VIEW_CHARS = 800
 
 
 def analyze_room_discussion(
@@ -36,12 +40,14 @@ def analyze_room_discussion(
     token_counter: Counter[str] = Counter()
     for user_messages in by_user.values():
         latest = user_messages[-1]
-        combined = " ".join(message.content for message in user_messages[-3:])
+        # A participant's view often spans several messages (claim, then example
+        # or follow-up). Using only the last one dropped the main claim.
+        combined = " ".join(message.content.strip() for message in user_messages[-PARTICIPANT_MESSAGE_LIMIT:])
         token_counter.update(tokenize(combined))
         participant_views.append({
             "user_id": latest.user_id,
             "user_name": latest.user.name,
-            "key_point": latest.content[:500],
+            "key_point": combined[:PARTICIPANT_VIEW_CHARS],
         })
 
     discussion_text = " ".join(message.content for message in messages[-12:])
@@ -76,9 +82,15 @@ def analyze_room_discussion(
         f"교과목: {room.subject or '일반'}\n토론 주제: {topic}\n"
         f"참여자별 최근 의견:\n{differences}\n\n검색 근거:\n{context_text or '[검색 자료 없음]'}\n\n"
         "두 학생 의견의 공통점과 차이를 공정하게 비교하고, 잘한 점을 짧게 말한 뒤 "
-        f"다음 토론 질문으로 반드시 다음 문장을 사용하세요: {next_question}"
+        f"다음 토론 질문으로 반드시 다음 문장을 사용하세요: {next_question}\n"
+        "각 참여자의 핵심 주장은 그 학생이 실제로 쓴 표현에 맞게 요약하고, 말하지 않은 주장을 덧붙이지 마세요. "
+        "의견이 서로 갈리는 지점이 있으면 부드럽게 바꾸지 말고 무엇이 다른지 분명히 쓰세요. "
+        "공통점이 없으면 억지로 만들지 마세요. 마크다운 기호 없이 문장으로 쓰세요."
     )
     generated, ai_provider = generate_with_provider(prompt, room.subject or "일반")
+    if generated:
+        # The UI shows plain text; turn markdown list markers into bullets.
+        generated = re.sub(r"(?m)^\s*[-*]\s+", "• ", generated)
     summary = generated or (
         f"공통점: {common_ground}\n\n"
         f"관점 비교: {differences}\n\n"
