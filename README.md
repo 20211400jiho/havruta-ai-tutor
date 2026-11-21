@@ -2,9 +2,9 @@
 
 중·고등학생이 **자신의 설명 → AI의 질문·피드백 → 생각 수정**을 반복하는 RAG 기반 하브루타 학습 웹앱입니다. 단순 정답 제공보다, 근거를 설명하고 배운 내용을 새로운 상황에 적용하는 과정을 돕는 캡스톤 프로젝트입니다.
 
-[웹앱](https://frontend-production-8c41.up.railway.app) · [API 문서](https://backend-production-98f3.up.railway.app/docs) · [발표 자료](docs/PRESENTATION_GUIDE.md) · [배포 안내](docs/RAILWAY_DEPLOYMENT.md)
+[발표 자료](docs/PRESENTATION_GUIDE.md) · [배포 안내](docs/RAILWAY_DEPLOYMENT.md)
 
-> 배포 주소의 이용 가능 여부는 서비스 운영 상태에 따라 달라집니다. Git 저장소만 복제하면 운영 DB나 전체 ChromaDB 자료까지 내려받아지는 것은 아닙니다.
+> 웹앱 배포 서비스는 종료했습니다. Git 저장소만 복제하면 운영 DB나 전체 ChromaDB 자료까지 내려받아지는 것은 아닙니다.
 
 ## 주요 기능
 
